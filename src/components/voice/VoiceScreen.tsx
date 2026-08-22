@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useVoiceStore } from "@/stores/voiceStore";
+import { useRealtimeVoice } from "@/hooks";
 import { VoiceOrb } from "./VoiceOrb";
 import { VoiceControls } from "./VoiceControls";
 import { ConnectionStatus } from "./ConnectionStatus";
@@ -10,20 +11,22 @@ import { ErrorDisplay } from "./ErrorDisplay";
 
 export function VoiceScreen() {
   const {
-    state,
     messages,
     error,
-    isMuted,
     audioLevels,
     sessionStartTime,
     isTranscriptVisible,
-    setState,
     setError,
-    setMuted,
-    setSessionStartTime,
     setTranscriptVisible,
-    reset,
   } = useVoiceStore();
+
+  const {
+    state,
+    connect,
+    disconnect,
+    toggleMute,
+    isMuted,
+  } = useRealtimeVoice();
 
   const [elapsedTime, setElapsedTime] = useState(0);
 
@@ -47,28 +50,16 @@ export function VoiceScreen() {
   }, [sessionStartTime]);
 
   const handleStart = useCallback(() => {
-    setState("requesting_permission");
-    setSessionStartTime(Date.now());
-
-    setTimeout(() => {
-      setState("connecting");
-      setTimeout(() => {
-        setState("listening");
-      }, 1500);
-    }, 500);
-  }, [setState, setSessionStartTime]);
+    connect();
+  }, [connect]);
 
   const handleEnd = useCallback(() => {
-    setState("ended");
-    setSessionStartTime(null);
-    setTimeout(() => {
-      reset();
-    }, 2000);
-  }, [setState, setSessionStartTime, reset]);
+    disconnect();
+  }, [disconnect]);
 
   const handleToggleMute = useCallback(() => {
-    setMuted(!isMuted);
-  }, [isMuted, setMuted]);
+    toggleMute();
+  }, [toggleMute]);
 
   const handleToggleTranscript = useCallback(() => {
     setTranscriptVisible(!isTranscriptVisible);
@@ -80,8 +71,8 @@ export function VoiceScreen() {
 
   const handleRetry = useCallback(() => {
     setError(null);
-    handleStart();
-  }, [setError, handleStart]);
+    connect();
+  }, [setError, connect]);
 
   const handleDismissError = useCallback(() => {
     setError(null);

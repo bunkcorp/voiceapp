@@ -2,7 +2,6 @@
 
 import { useRef, useCallback, useEffect } from "react";
 import { useVoiceStore } from "@/stores/voiceStore";
-import { useMicrophone } from "./useMicrophone";
 import {
   parseRealtimeEvent,
   logVoiceEvent,
@@ -47,33 +46,43 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animationFrameRef = useRef<number>(0);
   const currentAssistantMessageRef = useRef<string | null>(null);
   const currentUserMessageRef = useRef<string | null>(null);
 
-  const {
-    stream,
-    requestPermission,
-    mute: micMute,
-    unmute: micUnmute,
-    toggleMute: micToggle,
-    stop: stopMicrophone,
-    error: micError,
-  } = useMicrophone({
-    onAudioLevel: (level) => {
-      setAudioLevels({ microphone: level });
-    },
-  });
+  const startAudioAnalysis = useCallback(() => {
+    const analyze = () => {
+      if (!analyserRef.current) return;
 
-  useEffect(() => {
-    if (micError) {
-      setError({
-        code: "MICROPHONE_ERROR",
-        message: micError,
-        action: "Check your browser settings and try again.",
-      });
-      setState("error");
+      const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+      analyserRef.current.getByteFrequencyData(dataArray);
+
+      const sum = dataArray.reduce((acc, val) => acc + val, 0);
+      const average = sum / dataArray.length;
+      const normalizedLevel = Math.min(average / 128, 1);
+
+      const store = useVoiceStore.getState();
+      setAudioLevels({ microphone: store.isMuted ? 0 : normalizedLevel });
+
+      animationFrameRef.current = requestAnimationFrame(analyze);
+    };
+    analyze();
+  }, [setAudioLevels]);
+
+  const stopAudioAnalysis = useCallback(() => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = 0;
     }
-  }, [micError, setError, setState]);
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    analyserRef.current = null;
+  }, []);
 
   const handleRealtimeEvent = useCallback(
     (event: RealtimeEvent) => {
@@ -191,10 +200,22 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
       setState("requesting_permission");
       logVoiceEvent("starting connection");
 
-      const permissionGranted = await requestPermission();
-      if (!permissionGranted) {
-        return;
-      }
+      const micStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+      micStreamRef.current = micStream;
+      logVoiceEvent("microphone granted");
+
+      audioContextRef.current = new AudioContext();
+      analyserRef.current = audioContextRef.current.createAnalyser();
+      analyserRef.current.fftSize = 256;
+      const source = audioContextRef.current.createMediaStreamSource(micStream);
+      source.connect(analyserRef.current);
+      startAudioAnalysis();
 
       setState("connecting");
       setSessionStartTime(Date.now());
@@ -230,11 +251,9 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
         }
       };
 
-      if (stream) {
-        stream.getTracks().forEach((track) => {
-          pc.addTrack(track, stream);
-        });
-      }
+      micStream.getTracks().forEach((track) => {
+        pc.addTrack(track, micStream);
+      });
 
       const dc = pc.createDataChannel("oai-events");
       dataChannelRef.current = dc;
@@ -288,23 +307,53 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
     } catch (error) {
       logVoiceEvent("connection error", { error });
 
-      setError({
-        code: "CONNECTION_ERROR",
-        message:
-          error instanceof Error ? error.message : "Failed to connect",
-        action: "Please try again.",
-      });
+      if (error instanceof DOMException) {
+        if (error.name === "NotAllowedError") {
+          setError({
+            code: "MICROPHONE_DENIED",
+            message: "Microphone access is blocked.",
+            action: "Allow microphone access for this site in your browser settings, then try again.",
+          });
+        } else if (error.name === "NotFoundError") {
+          setError({
+            code: "NO_MICROPHONE",
+            message: "No microphone found.",
+            action: "Please connect a microphone and try again.",
+          });
+        } else {
+          setError({
+            code: "CONNECTION_ERROR",
+            message: error.message,
+            action: "Please try again.",
+          });
+        }
+      } else {
+        setError({
+          code: "CONNECTION_ERROR",
+          message:
+            error instanceof Error ? error.message : "Failed to connect",
+          action: "Please try again.",
+        });
+      }
       setState("error");
     }
   }, [
-    stream,
-    requestPermission,
+    startAudioAnalysis,
     setState,
     setError,
     setSessionStartTime,
     clearMessages,
     handleRealtimeEvent,
   ]);
+
+  const stopMicrophone = useCallback(() => {
+    if (micStreamRef.current) {
+      micStreamRef.current.getTracks().forEach((track) => track.stop());
+      micStreamRef.current = null;
+      logVoiceEvent("microphone stopped");
+    }
+    stopAudioAnalysis();
+  }, [stopAudioAnalysis]);
 
   const disconnect = useCallback(() => {
     logVoiceEvent("disconnecting");
@@ -341,19 +390,32 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
   }, [stopMicrophone, setState, setSessionStartTime, reset]);
 
   const mute = useCallback(() => {
-    micMute();
-    setMuted(true);
-  }, [micMute, setMuted]);
+    if (micStreamRef.current) {
+      micStreamRef.current.getAudioTracks().forEach((track) => {
+        track.enabled = false;
+      });
+      setMuted(true);
+      logVoiceEvent("microphone muted");
+    }
+  }, [setMuted]);
 
   const unmute = useCallback(() => {
-    micUnmute();
-    setMuted(false);
-  }, [micUnmute, setMuted]);
+    if (micStreamRef.current) {
+      micStreamRef.current.getAudioTracks().forEach((track) => {
+        track.enabled = true;
+      });
+      setMuted(false);
+      logVoiceEvent("microphone unmuted");
+    }
+  }, [setMuted]);
 
   const toggleMute = useCallback(() => {
-    micToggle();
-    setMuted(!isMuted);
-  }, [micToggle, setMuted, isMuted]);
+    if (isMuted) {
+      unmute();
+    } else {
+      mute();
+    }
+  }, [isMuted, mute, unmute]);
 
   useEffect(() => {
     return () => {
@@ -363,9 +425,12 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
       if (dataChannelRef.current) {
         dataChannelRef.current.close();
       }
-      stopMicrophone();
+      if (micStreamRef.current) {
+        micStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
+      stopAudioAnalysis();
     };
-  }, [stopMicrophone]);
+  }, [stopAudioAnalysis]);
 
   return {
     state,
