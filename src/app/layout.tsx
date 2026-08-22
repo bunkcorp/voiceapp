@@ -15,10 +15,15 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Voice Assistant",
   description: "Real-time voice conversation with AI",
+  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "Voice",
+  },
+  icons: {
+    icon: "/icons/icon.svg",
+    apple: "/icons/icon.svg",
   },
   formatDetection: {
     telephone: false,

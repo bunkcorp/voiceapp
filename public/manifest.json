@@ -1,0 +1,21 @@
+{
+  "name": "Voice Assistant",
+  "short_name": "Voice",
+  "description": "Real-time voice conversation with AI",
+  "start_url": "/voice",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["utilities", "productivity"],
+  "lang": "en",
+  "dir": "ltr"
+}
