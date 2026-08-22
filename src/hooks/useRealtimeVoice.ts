@@ -53,6 +53,9 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
   const animationFrameRef = useRef<number>(0);
   const currentAssistantMessageRef = useRef<string | null>(null);
   const currentUserMessageRef = useRef<string | null>(null);
+  const reconnectAttemptsRef = useRef<number>(0);
+  const maxReconnectAttempts = 3;
+  const isConnectingRef = useRef<boolean>(false);
 
   const startAudioAnalysis = useCallback(() => {
     const analyze = () => {
@@ -243,6 +246,14 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
   );
 
   const connect = useCallback(async () => {
+    if (isConnectingRef.current) {
+      logVoiceEvent("connection already in progress, skipping");
+      return;
+    }
+    
+    isConnectingRef.current = true;
+    reconnectAttemptsRef.current = 0;
+    
     try {
       setState("requesting_permission");
       logVoiceEvent("starting connection");
@@ -286,15 +297,47 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
           state: pc.iceConnectionState,
         });
 
-        if (pc.iceConnectionState === "disconnected") {
+        if (pc.iceConnectionState === "connected") {
+          reconnectAttemptsRef.current = 0;
+        } else if (pc.iceConnectionState === "disconnected") {
           setState("reconnecting");
+          attemptReconnect();
         } else if (pc.iceConnectionState === "failed") {
-          setError({
-            code: "CONNECTION_FAILED",
-            message: "Connection to voice service failed.",
-            action: "Check your network connection and try again.",
-          });
-          setState("error");
+          if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+            setState("reconnecting");
+            attemptReconnect();
+          } else {
+            setError({
+              code: "CONNECTION_FAILED",
+              message: "Connection to voice service failed after multiple attempts.",
+              action: "Check your network connection and try again.",
+            });
+            setState("error");
+          }
+        }
+      };
+
+      const attemptReconnect = async () => {
+        reconnectAttemptsRef.current++;
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current - 1), 10000);
+        
+        logVoiceEvent("attempting reconnect", {
+          attempt: reconnectAttemptsRef.current,
+          maxAttempts: maxReconnectAttempts,
+          delayMs: delay,
+        });
+
+        await new Promise(resolve => setTimeout(resolve, delay));
+
+        if (peerConnectionRef.current?.iceConnectionState === "failed" ||
+            peerConnectionRef.current?.iceConnectionState === "disconnected") {
+          if (reconnectAttemptsRef.current <= maxReconnectAttempts) {
+            logVoiceEvent("reconnecting - closing old connection");
+            peerConnectionRef.current?.close();
+            peerConnectionRef.current = null;
+            dataChannelRef.current = null;
+            isConnectingRef.current = false;
+          }
         }
       };
 
@@ -383,6 +426,7 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
         });
       }
       setState("error");
+      isConnectingRef.current = false;
     }
   }, [
     startAudioAnalysis,
@@ -404,6 +448,8 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
 
   const disconnect = useCallback(() => {
     logVoiceEvent("disconnecting");
+    isConnectingRef.current = false;
+    reconnectAttemptsRef.current = maxReconnectAttempts + 1;
 
     if (
       dataChannelRef.current &&
@@ -465,7 +511,24 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
   }, [isMuted, mute, unmute]);
 
   useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        logVoiceEvent("app backgrounded");
+        if (audioContextRef.current?.state === "running") {
+          audioContextRef.current.suspend();
+        }
+      } else {
+        logVoiceEvent("app foregrounded");
+        if (audioContextRef.current?.state === "suspended") {
+          audioContextRef.current.resume();
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       if (peerConnectionRef.current) {
         peerConnectionRef.current.close();
       }
