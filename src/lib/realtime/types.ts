@@ -1,23 +1,26 @@
+export interface RealtimeTurnDetection {
+  type: "server_vad" | "semantic_vad";
+  threshold?: number;
+  prefix_padding_ms?: number;
+  silence_duration_ms?: number;
+  create_response?: boolean;
+  interrupt_response?: boolean;
+}
+
 export interface RealtimeSessionConfig {
   type: "realtime";
   model: string;
   instructions?: string;
   audio?: {
     input?: {
-      noise_suppression?: boolean;
+      transcription?: {
+        model?: string;
+      };
+      turn_detection?: RealtimeTurnDetection;
     };
     output?: {
       voice?: string;
     };
-  };
-  turn_detection?: {
-    type: "server_vad";
-    threshold?: number;
-    prefix_padding_ms?: number;
-    silence_duration_ms?: number;
-  };
-  input_audio_transcription?: {
-    model?: string;
   };
 }
 

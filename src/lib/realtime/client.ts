@@ -5,20 +5,19 @@ export const DEFAULT_SESSION_CONFIG: RealtimeSessionConfig = {
   model: "gpt-realtime-2.1",
   audio: {
     input: {
-      noise_suppression: true,
+      transcription: {
+        model: "gpt-4o-mini-transcribe",
+      },
+      turn_detection: {
+        type: "server_vad",
+        threshold: 0.5,
+        prefix_padding_ms: 300,
+        silence_duration_ms: 500,
+      },
     },
     output: {
       voice: "marin",
     },
-  },
-  turn_detection: {
-    type: "server_vad",
-    threshold: 0.5,
-    prefix_padding_ms: 300,
-    silence_duration_ms: 500,
-  },
-  input_audio_transcription: {
-    model: "whisper-1",
   },
 };
 

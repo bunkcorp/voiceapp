@@ -18,7 +18,16 @@ export function createSessionUpdateEvent(config: {
 }): string {
   return JSON.stringify({
     type: "session.update",
-    session: config,
+    session: {
+      type: "realtime",
+      instructions: config.instructions,
+      audio: {
+        input: config.turn_detection
+          ? { turn_detection: config.turn_detection }
+          : undefined,
+        output: config.voice ? { voice: config.voice } : undefined,
+      },
+    },
   });
 }
 

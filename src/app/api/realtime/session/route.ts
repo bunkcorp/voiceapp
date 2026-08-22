@@ -1,42 +1,62 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getOpenAIConfig, DEFAULT_INSTRUCTIONS } from "@/lib/server/openai";
+import {
+  getOpenAIConfig,
+  buildRealtimeSessionConfig,
+} from "@/lib/server/openai";
 
 export const runtime = "nodejs";
 
 const OPENAI_REALTIME_URL = "https://api.openai.com/v1/realtime/calls";
+
+const NO_STORE = { "Cache-Control": "no-store" };
+
+function jsonError(error: string, status: number) {
+  return NextResponse.json({ error }, { status, headers: NO_STORE });
+}
+
+function clientErrorFromOpenAI(status: number, errorText: string) {
+  let code = "";
+  let message = "";
+
+  try {
+    const parsed = JSON.parse(errorText) as {
+      error?: { code?: string; message?: string };
+    };
+    code = parsed.error?.code ?? "";
+    message = parsed.error?.message ?? "";
+  } catch {
+    // OpenAI sometimes returns non-JSON error bodies.
+  }
+
+  if (status === 401 || status === 403) {
+    return jsonError("Voice service authentication failed", status);
+  }
+
+  if (code === "invalid_offer" || message.toLowerCase().includes("sdp")) {
+    return jsonError("Invalid SDP offer", 400);
+  }
+
+  if (code === "model_not_found" || /model/i.test(code)) {
+    return jsonError("Realtime model is not available", status);
+  }
+
+  if (code === "unknown_parameter") {
+    return jsonError("Realtime session configuration is invalid", status);
+  }
+
+  return jsonError("Failed to create realtime session", status);
+}
 
 export async function POST(request: NextRequest) {
   try {
     const sdp = await request.text();
 
     if (!sdp || !sdp.includes("v=0")) {
-      return NextResponse.json(
-        { error: "Invalid SDP offer" },
-        { status: 400 }
-      );
+      return jsonError("Invalid SDP offer", 400);
     }
 
     const config = getOpenAIConfig();
-
-    const sessionConfig = JSON.stringify({
-      type: "realtime",
-      model: config.OPENAI_REALTIME_MODEL,
-      instructions: DEFAULT_INSTRUCTIONS,
-      audio: {
-        output: {
-          voice: config.OPENAI_REALTIME_VOICE,
-        },
-      },
-      turn_detection: {
-        type: "server_vad",
-        threshold: 0.5,
-        prefix_padding_ms: 300,
-        silence_duration_ms: 500,
-      },
-      input_audio_transcription: {
-        model: "whisper-1",
-      },
-    });
+    const sessionConfig = JSON.stringify(buildRealtimeSessionConfig(config));
 
     const formData = new FormData();
     formData.set("sdp", sdp);
@@ -53,10 +73,7 @@ export async function POST(request: NextRequest) {
     if (!response.ok) {
       const errorText = await response.text();
       console.error("[api/realtime/session] OpenAI error:", errorText);
-      return NextResponse.json(
-        { error: "Failed to create realtime session" },
-        { status: response.status }
-      );
+      return clientErrorFromOpenAI(response.status, errorText);
     }
 
     const answerSdp = await response.text();
@@ -65,22 +82,16 @@ export async function POST(request: NextRequest) {
       status: 200,
       headers: {
         "Content-Type": "application/sdp",
-        "Cache-Control": "no-store",
+        ...NO_STORE,
       },
     });
   } catch (error) {
     console.error("[api/realtime/session] Error:", error);
 
     if (error instanceof Error && error.message.includes("Environment")) {
-      return NextResponse.json(
-        { error: "Server configuration error" },
-        { status: 500 }
-      );
+      return jsonError("Server configuration error", 500);
     }
 
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return jsonError("Internal server error", 500);
   }
 }
