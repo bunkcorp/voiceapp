@@ -31,6 +31,7 @@ export type RealtimeEventType =
   | "conversation.item.truncated"
   | "conversation.item.input_audio_transcription.completed"
   | "response.created"
+  | "response.cancelled"
   | "response.output_text.delta"
   | "response.output_text.done"
   | "response.output_audio.delta"

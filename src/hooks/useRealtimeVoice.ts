@@ -99,9 +99,38 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
 
         case "input_audio_buffer.speech_started": {
           const speechEvent = event as SpeechStartedEvent;
+          const currentState = useVoiceStore.getState().state;
+          
           logVoiceEvent("user speech started", {
             audio_start_ms: speechEvent.audio_start_ms,
+            wasInterruption: currentState === "assistant_speaking",
           });
+
+          if (currentState === "assistant_speaking") {
+            logVoiceEvent("interruption detected - cancelling response");
+            
+            if (
+              dataChannelRef.current &&
+              dataChannelRef.current.readyState === "open"
+            ) {
+              dataChannelRef.current.send(createResponseCancelEvent());
+            }
+
+            if (currentAssistantMessageRef.current) {
+              const store = useVoiceStore.getState();
+              const message = store.messages.find(
+                (m) => m.id === currentAssistantMessageRef.current
+              );
+              if (message && message.text) {
+                updateMessage(currentAssistantMessageRef.current, {
+                  text: message.text + " [interrupted]",
+                  status: "complete",
+                });
+              }
+              currentAssistantMessageRef.current = null;
+            }
+          }
+
           setState("user_speaking");
 
           const messageId = `user-${Date.now()}`;
@@ -182,6 +211,12 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
 
         case "response.output_audio.delta": {
           setState("assistant_speaking");
+          break;
+        }
+
+        case "response.cancelled": {
+          logVoiceEvent("response cancelled");
+          currentAssistantMessageRef.current = null;
           break;
         }
 
