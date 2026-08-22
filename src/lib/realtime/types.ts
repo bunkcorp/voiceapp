@@ -29,6 +29,7 @@ export type RealtimeEventType =
   | "input_audio_buffer.committed"
   | "conversation.item.created"
   | "conversation.item.truncated"
+  | "conversation.item.input_audio_transcription.completed"
   | "response.created"
   | "response.output_text.delta"
   | "response.output_text.done"
@@ -94,6 +95,13 @@ export interface ResponseDoneEvent extends RealtimeEvent {
       }>;
     }>;
   };
+}
+
+export interface InputTranscriptionCompletedEvent extends RealtimeEvent {
+  type: "conversation.item.input_audio_transcription.completed";
+  item_id: string;
+  content_index: number;
+  transcript: string;
 }
 
 export interface ErrorEvent extends RealtimeEvent {

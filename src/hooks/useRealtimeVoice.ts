@@ -14,6 +14,7 @@ import type {
   SpeechStartedEvent,
   TranscriptDeltaEvent,
   TranscriptDoneEvent,
+  InputTranscriptionCompletedEvent,
   ResponseDoneEvent,
   ErrorEvent,
 } from "@/lib/realtime/types";
@@ -118,9 +119,20 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
         case "input_audio_buffer.speech_stopped": {
           logVoiceEvent("user speech stopped");
           setState("assistant_processing");
+          break;
+        }
 
+        case "conversation.item.input_audio_transcription.completed": {
+          const transcriptionEvent = event as InputTranscriptionCompletedEvent;
+          logVoiceEvent("user transcription completed", {
+            transcript: transcriptionEvent.transcript,
+          });
           if (currentUserMessageRef.current) {
-            updateMessage(currentUserMessageRef.current, { status: "complete" });
+            updateMessage(currentUserMessageRef.current, {
+              text: transcriptionEvent.transcript,
+              status: "complete",
+            });
+            currentUserMessageRef.current = null;
           }
           break;
         }
