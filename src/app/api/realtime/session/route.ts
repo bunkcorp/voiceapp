@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   getOpenAIConfig,
+  buildHistoryContext,
   buildRealtimeSessionConfig,
 } from "@/lib/server/openai";
+import { SESSION_COOKIE, isValidSessionToken } from "@/lib/server/auth";
+import { getConversation } from "@/lib/server/store";
 
 export const runtime = "nodejs";
 
@@ -48,6 +51,10 @@ function clientErrorFromOpenAI(status: number, errorText: string) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!isValidSessionToken(request.cookies.get(SESSION_COOKIE)?.value)) {
+    return jsonError("Unauthorized", 401);
+  }
+
   try {
     const sdp = await request.text();
 
@@ -56,7 +63,27 @@ export async function POST(request: NextRequest) {
     }
 
     const config = getOpenAIConfig();
-    const sessionConfig = JSON.stringify(buildRealtimeSessionConfig(config));
+    const conversationId =
+      request.nextUrl.searchParams.get("c") ||
+      request.headers.get("x-conversation-id") ||
+      "";
+
+    let extraInstructions = "";
+    if (conversationId) {
+      try {
+        const detail = await getConversation(conversationId);
+        extraInstructions = buildHistoryContext({
+          messages: detail.messages,
+          files: detail.files,
+        });
+      } catch (error) {
+        console.error("[api/realtime/session] history load failed:", error);
+      }
+    }
+
+    const sessionConfig = JSON.stringify(
+      buildRealtimeSessionConfig({ ...config, extraInstructions })
+    );
 
     const formData = new FormData();
     formData.set("sdp", sdp);

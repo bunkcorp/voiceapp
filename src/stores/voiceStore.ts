@@ -24,8 +24,10 @@ interface VoiceStore {
 
   addMessage: (message: Message) => void;
   updateMessage: (id: string, updates: Partial<Message>) => void;
+  setMessages: (messages: Message[]) => void;
   clearMessages: () => void;
 
+  resetSession: () => void;
   reset: () => void;
 }
 
@@ -56,7 +58,16 @@ export const useVoiceStore = create<VoiceStore>((set) => ({
     set((s) => ({
       messages: s.messages.map((m) => (m.id === id ? { ...m, ...updates } : m)),
     })),
+  setMessages: (messages) => set({ messages }),
   clearMessages: () => set({ messages: [] }),
 
+  resetSession: () =>
+    set({
+      state: "idle",
+      error: null,
+      isMuted: false,
+      audioLevels: { microphone: 0, speaker: 0 },
+      sessionStartTime: null,
+    }),
   reset: () => set(initialState),
 }));

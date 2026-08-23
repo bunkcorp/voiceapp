@@ -164,7 +164,8 @@ export function VoiceControls({
         <button
           onClick={onToggleTranscript}
           className="flex items-center justify-center w-14 h-14 rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors touch-manipulation"
-          aria-label="Toggle transcript"
+          aria-label="Show transcript"
+          title="Show transcript"
         >
           <TranscriptIcon />
         </button>

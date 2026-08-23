@@ -7,10 +7,19 @@ export interface RealtimeTurnDetection {
   interrupt_response?: boolean;
 }
 
+export interface RealtimeFunctionTool {
+  type: "function";
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+}
+
 export interface RealtimeSessionConfig {
   type: "realtime";
   model: string;
   instructions?: string;
+  tools?: RealtimeFunctionTool[];
+  tool_choice?: "auto" | "none" | "required";
   audio?: {
     input?: {
       transcription?: {
@@ -41,6 +50,7 @@ export type RealtimeEventType =
   | "response.output_audio.done"
   | "response.output_audio_transcript.delta"
   | "response.output_audio_transcript.done"
+  | "response.function_call_arguments.done"
   | "response.done"
   | "error";
 
@@ -92,13 +102,26 @@ export interface ResponseDoneEvent extends RealtimeEvent {
     output: Array<{
       id: string;
       type: string;
-      role: string;
+      role?: string;
+      name?: string;
+      call_id?: string;
+      arguments?: string;
       content?: Array<{
         type: string;
         transcript?: string;
       }>;
     }>;
   };
+}
+
+export interface FunctionCallArgumentsDoneEvent extends RealtimeEvent {
+  type: "response.function_call_arguments.done";
+  response_id: string;
+  item_id: string;
+  output_index: number;
+  call_id: string;
+  name: string;
+  arguments: string;
 }
 
 export interface InputTranscriptionCompletedEvent extends RealtimeEvent {

@@ -6,6 +6,68 @@ export function createResponseCancelEvent(): string {
   });
 }
 
+export function createFunctionCallOutputEvent(
+  callId: string,
+  output: string
+): string {
+  return JSON.stringify({
+    type: "conversation.item.create",
+    item: {
+      type: "function_call_output",
+      call_id: callId,
+      output,
+    },
+  });
+}
+
+export function createResponseCreateEvent(): string {
+  return JSON.stringify({
+    type: "response.create",
+  });
+}
+
+export function createUserTextItemEvent(text: string): string {
+  return JSON.stringify({
+    type: "conversation.item.create",
+    item: {
+      type: "message",
+      role: "user",
+      content: [{ type: "input_text", text }],
+    },
+  });
+}
+
+export function createAssistantTextItemEvent(text: string): string {
+  return JSON.stringify({
+    type: "conversation.item.create",
+    item: {
+      type: "message",
+      role: "assistant",
+      content: [{ type: "output_text", text }],
+    },
+  });
+}
+
+export function createUserImageItemEvent(imageUrl: string, text?: string): string {
+  const content: Array<Record<string, string>> = [
+    {
+      type: "input_image",
+      image_url: imageUrl,
+    },
+  ];
+  if (text) {
+    content.push({ type: "input_text", text });
+  }
+  return JSON.stringify({
+    type: "conversation.item.create",
+    item: {
+      type: "message",
+      role: "user",
+      content,
+    },
+  });
+}
+
 export function createSessionUpdateEvent(config: {
   instructions?: string;
   voice?: string;

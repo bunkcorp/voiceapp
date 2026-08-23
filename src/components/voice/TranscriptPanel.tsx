@@ -74,6 +74,11 @@ export function TranscriptPanel({
                     : "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white"
                 } ${message.status === "partial" ? "opacity-75" : ""}`}
               >
+                {message.file ? (
+                  <p className="mb-1 text-xs font-medium opacity-80">
+                    {message.file.filename}
+                  </p>
+                ) : null}
                 <p className="text-sm leading-relaxed whitespace-pre-wrap">
                   {message.text || "..."}
                 </p>

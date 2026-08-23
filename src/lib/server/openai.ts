@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { GITHUB_TOOL_DEFINITIONS } from "@/lib/server/github";
 
 const envSchema = z.object({
   OPENAI_API_KEY: z.string().min(1, "OPENAI_API_KEY is required"),
@@ -20,16 +21,59 @@ export function getOpenAIConfig() {
   return result.data;
 }
 
-export const DEFAULT_INSTRUCTIONS = `You are a realtime voice assistant. Speak naturally and conversationally. Keep ordinary answers concise unless the user requests detail. Respond directly. The user may interrupt at any time. Do not narrate internal processing.`;
+export const DEFAULT_INSTRUCTIONS = `You are a realtime voice assistant. Speak naturally and conversationally. Keep ordinary answers concise unless the user requests detail. Respond directly. The user may interrupt at any time. Do not narrate internal processing.
+
+You can look at Kevin's GitHub and also propose writes. The authenticated account includes bunkcorp and any personal or organization repositories that token can access, including private repos. Use read tools for repositories, files, code, or recent commits. Summarize for speech: name a few highlights instead of reading long lists or full files unless asked.
+
+Write tools: create_or_update_file, create_branch, and create_pull_request. Calling them only creates a pending proposal. They do not change GitHub until the user clearly says yes and you call confirm_github_write with that proposal_id. Always speak a short summary of the repo, branch, files, commit message, and PR title, then wait. If the user says no or changes their mind, call discard_github_write.
+
+Prefer a new branch plus a pull request over committing to main or master. Only propose a default-branch commit if the user explicitly asked for that. Never force-push, delete repositories, write secrets or .env files, or dispatch workflows. If asked to do those, refuse.
+
+The user may attach images and documents. Use attached images and extracted document text as conversation context.`;
+
+export function buildHistoryContext(input: {
+  messages: Array<{ role: string; text: string; kind?: string }>;
+  files: Array<{ filename: string; mime_type: string; extracted_text?: string | null }>;
+}) {
+  const lines: string[] = [];
+
+  for (const file of input.files) {
+    if (file.extracted_text?.trim()) {
+      lines.push(
+        `Attached document "${file.filename}":\n${file.extracted_text.trim()}`
+      );
+    } else if (file.mime_type.startsWith("image/")) {
+      lines.push(`Attached image: ${file.filename}`);
+    }
+  }
+
+  const transcript = input.messages
+    .filter((message) => message.text.trim())
+    .map((message) => `${message.role === "assistant" ? "Assistant" : "User"}: ${message.text.trim()}`)
+    .join("\n");
+
+  if (transcript) {
+    lines.push(`Prior conversation:\n${transcript}`);
+  }
+
+  if (lines.length === 0) {
+    return "";
+  }
+
+  return `\n\nThe following is prior context for this chat. Continue naturally and do not re-introduce yourself.\n\n${lines.join("\n\n")}`;
+}
 
 export function buildRealtimeSessionConfig(config: {
   OPENAI_REALTIME_MODEL: string;
   OPENAI_REALTIME_VOICE: string;
+  extraInstructions?: string;
 }) {
   return {
     type: "realtime" as const,
     model: config.OPENAI_REALTIME_MODEL,
-    instructions: DEFAULT_INSTRUCTIONS,
+    instructions: `${DEFAULT_INSTRUCTIONS}${config.extraInstructions ?? ""}`,
+    tools: GITHUB_TOOL_DEFINITIONS,
+    tool_choice: "auto" as const,
     audio: {
       input: {
         transcription: {

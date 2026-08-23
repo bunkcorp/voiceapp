@@ -10,12 +10,22 @@ export type VoiceSessionState =
   | "error"
   | "ended";
 
+export interface MessageFile {
+  id: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  kind: "image" | "document" | "file";
+  extractedText?: string;
+}
+
 export interface Message {
   id: string;
   role: "user" | "assistant";
   text: string;
   status: "partial" | "complete";
   timestamp: number;
+  file?: MessageFile;
 }
 
 export interface VoiceError {

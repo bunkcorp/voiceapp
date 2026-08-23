@@ -6,7 +6,15 @@ import {
   parseRealtimeEvent,
   logVoiceEvent,
   createResponseCancelEvent,
+  createFunctionCallOutputEvent,
+  createResponseCreateEvent,
+  createUserTextItemEvent,
+  createAssistantTextItemEvent,
+  createUserImageItemEvent,
 } from "@/lib/realtime/events";
+import { useChatStore } from "@/stores/chatStore";
+import type { Message } from "@/types/voice";
+import { isGitHubToolName } from "@/lib/realtime/githubTools";
 import type { VoiceSessionState } from "@/types/voice";
 import type {
   RealtimeEvent,
@@ -16,6 +24,7 @@ import type {
   TranscriptDoneEvent,
   InputTranscriptionCompletedEvent,
   ResponseDoneEvent,
+  FunctionCallArgumentsDoneEvent,
   ErrorEvent,
 } from "@/lib/realtime/types";
 
@@ -26,6 +35,8 @@ interface UseRealtimeVoiceReturn {
   mute: () => void;
   unmute: () => void;
   toggleMute: () => void;
+  sendText: (text: string) => boolean;
+  sendAttachment: (message: Message) => Promise<void>;
   isMuted: boolean;
 }
 
@@ -40,8 +51,7 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
     setSessionStartTime,
     addMessage,
     updateMessage,
-    clearMessages,
-    reset,
+    resetSession,
   } = useVoiceStore();
 
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
@@ -56,6 +66,8 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
   const reconnectAttemptsRef = useRef<number>(0);
   const maxReconnectAttempts = 3;
   const isConnectingRef = useRef<boolean>(false);
+  const pendingFunctionCallsRef = useRef(0);
+  const awaitingFunctionResultsRef = useRef(false);
 
   const startAudioAnalysis = useCallback(() => {
     const analyze = () => {
@@ -87,6 +99,153 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
     }
     analyserRef.current = null;
   }, []);
+
+  const sendOnDataChannel = useCallback((payload: string) => {
+    const dataChannel = dataChannelRef.current;
+    if (dataChannel && dataChannel.readyState === "open") {
+      dataChannel.send(payload);
+      return true;
+    }
+    return false;
+  }, []);
+
+  const blobToDataUrl = useCallback(async (blob: Blob) => {
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+  }, []);
+
+  const sendHistoryItem = useCallback(
+    async (message: Message) => {
+      if (message.file?.kind === "image") {
+        const conversationId = useChatStore.getState().activeId;
+        if (!conversationId) {
+          return;
+        }
+        const response = await fetch(
+          `/api/chats/${conversationId}/files/${message.file.id}`
+        );
+        if (!response.ok) {
+          sendOnDataChannel(
+            createUserTextItemEvent(`Attached image: ${message.file.filename}`)
+          );
+          return;
+        }
+        const dataUrl = await blobToDataUrl(await response.blob());
+        sendOnDataChannel(
+          createUserImageItemEvent(
+            dataUrl,
+            message.text || `Attached image: ${message.file.filename}`
+          )
+        );
+        return;
+      }
+
+      if (message.file?.extractedText) {
+        sendOnDataChannel(
+          createUserTextItemEvent(
+            `${message.text || `Attached file: ${message.file.filename}`}\n\n${message.file.extractedText}`
+          )
+        );
+        return;
+      }
+
+      if (!message.text.trim()) {
+        return;
+      }
+
+      if (message.role === "assistant") {
+        sendOnDataChannel(createAssistantTextItemEvent(message.text));
+        return;
+      }
+
+      sendOnDataChannel(createUserTextItemEvent(message.text));
+    },
+    [blobToDataUrl, sendOnDataChannel]
+  );
+
+  const injectConversationHistory = useCallback(async () => {
+    const history = useVoiceStore
+      .getState()
+      .messages.filter(
+        (message) =>
+          message.status === "complete" && (message.text.trim() || message.file)
+      );
+
+    for (const message of history) {
+      try {
+        await sendHistoryItem(message);
+      } catch (error) {
+        logVoiceEvent("failed to inject history item", {
+          id: message.id,
+          error: error instanceof Error ? error.message : "unknown",
+        });
+      }
+    }
+  }, [sendHistoryItem]);
+
+  const finishFunctionCallsIfReady = useCallback(() => {
+    if (
+      awaitingFunctionResultsRef.current &&
+      pendingFunctionCallsRef.current === 0
+    ) {
+      awaitingFunctionResultsRef.current = false;
+      sendOnDataChannel(createResponseCreateEvent());
+    }
+  }, [sendOnDataChannel]);
+
+  const handleFunctionCall = useCallback(
+    async (event: FunctionCallArgumentsDoneEvent) => {
+      pendingFunctionCallsRef.current += 1;
+      setState("assistant_processing");
+      logVoiceEvent("function call", {
+        name: event.name,
+        call_id: event.call_id,
+      });
+
+      let output: string;
+      try {
+        let args: Record<string, unknown> = {};
+        if (event.arguments) {
+          const parsed = JSON.parse(event.arguments) as unknown;
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            args = parsed as Record<string, unknown>;
+          }
+        }
+
+        if (!isGitHubToolName(event.name)) {
+          output = JSON.stringify({ error: `Unknown tool: ${event.name}` });
+        } else {
+          const response = await fetch("/api/github/tool", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ name: event.name, arguments: args }),
+          });
+          const data = await response.json().catch(() => ({
+            error: "GitHub tool request failed",
+          }));
+          output = JSON.stringify(data);
+        }
+      } catch (error) {
+        output = JSON.stringify({
+          error:
+            error instanceof Error ? error.message : "GitHub tool request failed",
+        });
+      }
+
+      sendOnDataChannel(createFunctionCallOutputEvent(event.call_id, output));
+      pendingFunctionCallsRef.current = Math.max(
+        0,
+        pendingFunctionCallsRef.current - 1
+      );
+      finishFunctionCallsIfReady();
+    },
+    [finishFunctionCallsIfReady, sendOnDataChannel, setState]
+  );
 
   const handleRealtimeEvent = useCallback(
     (event: RealtimeEvent) => {
@@ -172,31 +331,38 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
         case "response.created": {
           logVoiceEvent("response created");
           setState("assistant_processing");
+          currentAssistantMessageRef.current = null;
+          break;
+        }
 
-          const messageId = `assistant-${Date.now()}`;
-          currentAssistantMessageRef.current = messageId;
-          addMessage({
-            id: messageId,
-            role: "assistant",
-            text: "",
-            status: "partial",
-            timestamp: Date.now(),
-          });
+        case "response.function_call_arguments.done": {
+          void handleFunctionCall(event as FunctionCallArgumentsDoneEvent);
           break;
         }
 
         case "response.output_audio_transcript.delta": {
           const deltaEvent = event as TranscriptDeltaEvent;
-          if (currentAssistantMessageRef.current) {
-            const store = useVoiceStore.getState();
-            const message = store.messages.find(
-              (m) => m.id === currentAssistantMessageRef.current
-            );
-            if (message) {
-              updateMessage(currentAssistantMessageRef.current, {
-                text: message.text + deltaEvent.delta,
-              });
-            }
+          if (!currentAssistantMessageRef.current) {
+            const messageId = `assistant-${Date.now()}`;
+            currentAssistantMessageRef.current = messageId;
+            addMessage({
+              id: messageId,
+              role: "assistant",
+              text: deltaEvent.delta,
+              status: "partial",
+              timestamp: Date.now(),
+            });
+            break;
+          }
+
+          const store = useVoiceStore.getState();
+          const message = store.messages.find(
+            (m) => m.id === currentAssistantMessageRef.current
+          );
+          if (message) {
+            updateMessage(currentAssistantMessageRef.current, {
+              text: message.text + deltaEvent.delta,
+            });
           }
           break;
         }
@@ -225,7 +391,22 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
 
         case "response.done": {
           const responseEvent = event as ResponseDoneEvent;
-          logVoiceEvent("response done", { id: responseEvent.response.id });
+          const hasFunctionCall = (responseEvent.response.output ?? []).some(
+            (item) => item.type === "function_call"
+          );
+
+          logVoiceEvent("response done", {
+            id: responseEvent.response.id,
+            hasFunctionCall,
+          });
+
+          if (hasFunctionCall) {
+            awaitingFunctionResultsRef.current = true;
+            setState("assistant_processing");
+            finishFunctionCallsIfReady();
+            break;
+          }
+
           setState("listening");
           currentAssistantMessageRef.current = null;
           break;
@@ -242,7 +423,14 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
         }
       }
     },
-    [setState, setError, addMessage, updateMessage]
+    [
+      setState,
+      setError,
+      addMessage,
+      updateMessage,
+      handleFunctionCall,
+      finishFunctionCallsIfReady,
+    ]
   );
 
   const connect = useCallback(async () => {
@@ -253,6 +441,8 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
     
     isConnectingRef.current = true;
     reconnectAttemptsRef.current = 0;
+    pendingFunctionCallsRef.current = 0;
+    awaitingFunctionResultsRef.current = false;
     
     try {
       setState("requesting_permission");
@@ -277,7 +467,6 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
 
       setState("connecting");
       setSessionStartTime(Date.now());
-      clearMessages();
 
       const pc = new RTCPeerConnection();
       peerConnectionRef.current = pc;
@@ -350,6 +539,7 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
 
       dc.onopen = () => {
         logVoiceEvent("data channel open");
+        void injectConversationHistory();
       };
 
       dc.onmessage = (event) => {
@@ -372,7 +562,12 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
 
       logVoiceEvent("sending SDP offer to server");
 
-      const response = await fetch("/api/realtime/session", {
+      const conversationId = useChatStore.getState().activeId;
+      const sessionUrl = conversationId
+        ? `/api/realtime/session?c=${encodeURIComponent(conversationId)}`
+        : "/api/realtime/session";
+
+      const response = await fetch(sessionUrl, {
         method: "POST",
         body: offer.sdp,
         headers: {
@@ -433,8 +628,8 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
     setState,
     setError,
     setSessionStartTime,
-    clearMessages,
     handleRealtimeEvent,
+    injectConversationHistory,
   ]);
 
   const stopMicrophone = useCallback(() => {
@@ -450,6 +645,8 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
     logVoiceEvent("disconnecting");
     isConnectingRef.current = false;
     reconnectAttemptsRef.current = maxReconnectAttempts + 1;
+    pendingFunctionCallsRef.current = 0;
+    awaitingFunctionResultsRef.current = false;
 
     if (
       dataChannelRef.current &&
@@ -478,9 +675,44 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
     setSessionStartTime(null);
 
     setTimeout(() => {
-      reset();
+      resetSession();
     }, 2000);
-  }, [stopMicrophone, setState, setSessionStartTime, reset]);
+  }, [stopMicrophone, setState, setSessionStartTime, resetSession]);
+
+  const sendText = useCallback(
+    (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) {
+        return false;
+      }
+
+      addMessage({
+        id: `user-text-${Date.now()}`,
+        role: "user",
+        text: trimmed,
+        status: "complete",
+        timestamp: Date.now(),
+      });
+
+      const sent = sendOnDataChannel(createUserTextItemEvent(trimmed));
+      if (sent) {
+        sendOnDataChannel(createResponseCreateEvent());
+      }
+      return true;
+    },
+    [addMessage, sendOnDataChannel]
+  );
+
+  const sendAttachment = useCallback(
+    async (message: Message) => {
+      if (dataChannelRef.current?.readyState !== "open") {
+        return;
+      }
+      await sendHistoryItem(message);
+      sendOnDataChannel(createResponseCreateEvent());
+    },
+    [sendHistoryItem, sendOnDataChannel]
+  );
 
   const mute = useCallback(() => {
     if (micStreamRef.current) {
@@ -549,6 +781,8 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
     mute,
     unmute,
     toggleMute,
+    sendText,
+    sendAttachment,
     isMuted,
   };
 }

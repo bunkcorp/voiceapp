@@ -1,0 +1,16 @@
+name = "voiceapp-store"
+main = "src/index.js"
+compatibility_date = "2026-01-15"
+workers_dev = true
+routes = [
+  { pattern = "voice-store.karmadots.org", custom_domain = true }
+]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "voiceapp-chats"
+database_id = "03336b34-f3ca-4cdb-ad11-55e8eca335cf"
+
+[[kv_namespaces]]
+binding = "UPLOADS"
+id = "2615e93826c3461fbfa86f8148732bdc"
