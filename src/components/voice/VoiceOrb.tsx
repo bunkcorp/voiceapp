@@ -34,6 +34,7 @@ export function VoiceOrb({ state, microphoneLevel, speakerLevel }: VoiceOrbProps
     let phase = 0;
 
     const getStateColor = () => {
+      const prefersDark = document.documentElement.classList.contains("dark");
       switch (state) {
         case "listening":
           return { primary: "#3b82f6", secondary: "#60a5fa" };
@@ -49,7 +50,9 @@ export function VoiceOrb({ state, microphoneLevel, speakerLevel }: VoiceOrbProps
         case "error":
           return { primary: "#ef4444", secondary: "#f87171" };
         default:
-          return { primary: "#4b5563", secondary: "#6b7280" };
+          return prefersDark
+            ? { primary: "#737373", secondary: "#a3a3a3" }
+            : { primary: "#4b5563", secondary: "#6b7280" };
       }
     };
 

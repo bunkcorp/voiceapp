@@ -10,6 +10,9 @@ import { ConnectionStatus } from "./ConnectionStatus";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { ErrorDisplay } from "./ErrorDisplay";
 import { LogoutButton } from "@/components/auth/LogoutButton";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { BrandLogo } from "@/components/brand/BrandLogo";
+import { BrandPill } from "@/components/brand/BrandPill";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { ChatThread } from "@/components/chat/ChatThread";
 import { Composer } from "@/components/chat/Composer";
@@ -128,12 +131,10 @@ function VoiceScreenInner() {
   ].includes(state);
 
   return (
-    <div className="relative flex min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-black safe-area-inset">
-      <aside className="hidden w-72 shrink-0 border-r border-gray-200/80 bg-gray-100/80 dark:border-gray-800 dark:bg-black/40 md:flex md:flex-col">
+    <div className="relative flex h-dvh max-h-dvh overflow-hidden bg-gradient-to-b from-gray-50 to-gray-100 dark:from-neutral-950 dark:to-black safe-area-inset">
+      <aside className="hidden h-full min-h-0 w-72 shrink-0 border-r border-gray-200/80 bg-gray-100/80 dark:border-white/10 dark:bg-neutral-950 md:flex md:flex-col">
         <div className="px-4 py-4">
-          <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400">
-            Recent chats
-          </h2>
+          <BrandPill label="Recent chats" />
         </div>
         <div className="min-h-0 flex-1">
           <ChatSidebar
@@ -164,18 +165,19 @@ function VoiceScreenInner() {
             aria-label="Close chats"
             onClick={() => setSidebarOpen(false)}
           />
-          <div className="relative flex h-full w-72 flex-col bg-gray-100 dark:bg-gray-950">
-            <div className="flex items-center justify-between px-4 py-4">
-              <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400">
-                Recent chats
-              </h2>
-              <button
-                type="button"
-                onClick={() => setSidebarOpen(false)}
-                className="rounded-full px-2 py-1 text-sm text-gray-500"
-              >
-                Close
-              </button>
+          <div className="relative flex h-full w-72 flex-col bg-gray-100 dark:bg-neutral-950">
+            <div className="flex items-center justify-between gap-2 px-4 py-4">
+              <BrandPill label="Recent chats" />
+              <div className="flex items-center gap-1">
+                <ThemeToggle />
+                <button
+                  type="button"
+                  onClick={() => setSidebarOpen(false)}
+                  className="rounded-full px-2 py-1 text-sm text-gray-500 dark:text-gray-400 dark:hover:bg-white/10"
+                >
+                  Close
+                </button>
+              </div>
             </div>
             <ChatSidebar
               conversations={conversations}
@@ -199,21 +201,24 @@ function VoiceScreenInner() {
         </div>
       ) : null}
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="grid grid-cols-[1fr_auto_1fr] items-center px-4 py-4">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <header className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-black/5 px-4 py-3 dark:border-white/10 dark:bg-neutral-950/70">
           <div className="justify-self-start">
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}
-              className="rounded-full px-3 py-1.5 text-sm text-gray-500 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-800 md:hidden"
+              className="inline-flex items-center gap-2 rounded-full px-2.5 py-1.5 text-sm text-gray-500 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-white/10 md:hidden"
             >
+              <BrandLogo className="h-5 w-5" alt="" />
               Chats
             </button>
           </div>
-          <h1 className="max-w-[46vw] truncate text-center text-lg font-semibold text-gray-900 dark:text-white">
-            {activeTitle}
-          </h1>
-          <div className="justify-self-end">
+          <BrandPill
+            label={activeTitle}
+            className="max-w-full justify-self-center"
+          />
+          <div className="flex items-center gap-1 justify-self-end">
+            <ThemeToggle />
             <LogoutButton />
           </div>
         </header>
@@ -230,7 +235,7 @@ function VoiceScreenInner() {
               <button
                 type="button"
                 onClick={handleToggleTranscript}
-                className="rounded-full px-3 py-1.5 text-sm text-gray-500 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-800"
+                className="rounded-full px-3 py-1.5 text-sm text-gray-500 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-white/10"
               >
                 Show transcript
               </button>
@@ -252,20 +257,24 @@ function VoiceScreenInner() {
                 <ConnectionStatus state={state} elapsedTime={elapsedTime} />
               </div>
 
-              <div className="min-h-0 flex-1">
+              <div className="relative min-h-0 flex-1 overflow-hidden">
                 {loadingChat ? (
                   <p className="py-10 text-center text-sm text-gray-500 dark:text-gray-400">
                     Loading transcript…
                   </p>
                 ) : (
-                  <ChatThread conversationId={activeId} messages={messages} />
+                  <ChatThread
+                    key={activeId ?? "none"}
+                    conversationId={activeId}
+                    messages={messages}
+                  />
                 )}
               </div>
             </>
           )}
         </main>
 
-        <footer className="space-y-4 px-4 pt-3 pb-6 safe-area-bottom">
+        <footer className="shrink-0 space-y-4 px-4 pt-3 pb-6 safe-area-bottom">
           <Composer
             uploading={uploading}
             onSendText={handleSendText}
@@ -302,7 +311,7 @@ export function VoiceScreen() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-gray-50 to-gray-100 text-sm text-gray-500 dark:from-gray-900 dark:to-black dark:text-gray-400">
+        <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-gray-50 to-gray-100 text-sm text-gray-500 dark:from-neutral-950 dark:to-black dark:text-gray-400">
           Loading…
         </div>
       }

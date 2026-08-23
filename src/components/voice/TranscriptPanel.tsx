@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useLayoutEffect } from "react";
+import { ThreadJumpButtons } from "@/components/chat/ThreadJumpButtons";
+import { useStickyThreadScroll } from "@/hooks/useStickyThreadScroll";
 import type { Message } from "@/types/voice";
 
 interface TranscriptPanelProps {
@@ -19,19 +21,28 @@ export function TranscriptPanel({
   isVisible,
   onClose,
 }: TranscriptPanelProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const lastMessage = messages[messages.length - 1];
+  const {
+    scrollRef,
+    showJumpTop,
+    showJumpBottom,
+    scrollToTop,
+    scrollToBottom,
+    followLatest,
+  } = useStickyThreadScroll(isVisible ? "open" : "closed", messages.length);
 
-  useEffect(() => {
-    if (scrollRef.current && isVisible) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  useLayoutEffect(() => {
+    if (!isVisible) {
+      return;
     }
-  }, [messages, isVisible]);
+    followLatest();
+  }, [followLatest, isVisible, lastMessage?.id, lastMessage?.text, lastMessage?.status]);
 
   if (!isVisible) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-white dark:bg-gray-900 safe-area-inset">
-      <header className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+    <div className="fixed inset-0 z-50 flex flex-col bg-white dark:bg-neutral-950 safe-area-inset">
+      <header className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-white/10 dark:bg-neutral-950">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
           Transcript
         </h2>
@@ -51,45 +62,55 @@ export function TranscriptPanel({
         </button>
       </header>
 
-      <div
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto px-4 py-4 space-y-4"
-      >
-        {messages.length === 0 ? (
-          <p className="text-center text-gray-500 dark:text-gray-400 py-8">
-            No messages yet. Start speaking to see the transcript.
-          </p>
-        ) : (
-          messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex flex-col ${
-                message.role === "user" ? "items-end" : "items-start"
-              }`}
-            >
-              <div
-                className={`max-w-[85%] rounded-2xl px-4 py-2 ${
-                  message.role === "user"
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white"
-                } ${message.status === "partial" ? "opacity-75" : ""}`}
-              >
-                {message.file ? (
-                  <p className="mb-1 text-xs font-medium opacity-80">
-                    {message.file.filename}
-                  </p>
-                ) : null}
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                  {message.text || "..."}
-                </p>
-              </div>
-              <span className="text-xs text-gray-400 mt-1 px-1">
-                {formatTimestamp(message.timestamp)}
-                {message.status === "partial" && " (typing...)"}
-              </span>
+      <div className="relative min-h-0 flex-1 overflow-hidden">
+        <div
+          ref={scrollRef}
+          className="absolute inset-0 overflow-y-auto overscroll-contain px-4 py-4"
+        >
+          {messages.length === 0 ? (
+            <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+              No messages yet. Start speaking to see the transcript.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`flex flex-col ${
+                    message.role === "user" ? "items-end" : "items-start"
+                  }`}
+                >
+                  <div
+                    className={`max-w-[85%] rounded-2xl px-4 py-2 ${
+                      message.role === "user"
+                        ? "bg-blue-500 text-white"
+                        : "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white"
+                    } ${message.status === "partial" ? "opacity-75" : ""}`}
+                  >
+                    {message.file ? (
+                      <p className="mb-1 text-xs font-medium opacity-80">
+                        {message.file.filename}
+                      </p>
+                    ) : null}
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                      {message.text || "..."}
+                    </p>
+                  </div>
+                  <span className="text-xs text-gray-400 mt-1 px-1">
+                    {formatTimestamp(message.timestamp)}
+                    {message.status === "partial" && " (typing...)"}
+                  </span>
+                </div>
+              ))}
             </div>
-          ))
-        )}
+          )}
+        </div>
+        <ThreadJumpButtons
+          showTop={showJumpTop}
+          showBottom={showJumpBottom}
+          onTop={() => scrollToTop()}
+          onBottom={() => scrollToBottom()}
+        />
       </div>
     </div>
   );

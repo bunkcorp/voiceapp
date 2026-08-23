@@ -50,8 +50,8 @@ export function ChatSidebar({
                     onClick={() => onSelect(chat.id)}
                     className={`w-full rounded-xl px-3 py-2.5 text-left transition-colors ${
                       active
-                        ? "bg-white shadow-sm dark:bg-gray-800"
-                        : "hover:bg-white/70 dark:hover:bg-gray-800/70"
+                        ? "bg-white shadow-sm dark:bg-neutral-800"
+                        : "hover:bg-white/70 dark:hover:bg-white/10"
                     }`}
                   >
                     <div className="truncate text-sm font-medium text-gray-900 dark:text-white">

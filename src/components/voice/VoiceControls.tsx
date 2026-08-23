@@ -140,8 +140,8 @@ export function VoiceControls({
           className={`flex items-center justify-center w-14 h-14 rounded-full transition-colors touch-manipulation ${
             isMuted
               ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
-              : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
-          } ${!isActive ? "opacity-50 cursor-not-allowed" : "hover:bg-gray-200 dark:hover:bg-gray-700"}`}
+              : "bg-gray-100 text-gray-700 dark:bg-neutral-800 dark:text-gray-300"
+          } ${!isActive ? "opacity-50 cursor-not-allowed" : "hover:bg-gray-200 dark:hover:bg-neutral-700"}`}
           aria-label={isMuted ? "Unmute microphone" : "Mute microphone"}
           aria-pressed={isMuted}
         >
@@ -163,7 +163,7 @@ export function VoiceControls({
 
         <button
           onClick={onToggleTranscript}
-          className="flex items-center justify-center w-14 h-14 rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors touch-manipulation"
+          className="flex items-center justify-center w-14 h-14 rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-neutral-800 dark:text-gray-300 dark:hover:bg-neutral-700 transition-colors touch-manipulation"
           aria-label="Show transcript"
           title="Show transcript"
         >

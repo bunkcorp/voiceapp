@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useLayoutEffect } from "react";
+import { ThreadJumpButtons } from "@/components/chat/ThreadJumpButtons";
+import { useStickyThreadScroll } from "@/hooks/useStickyThreadScroll";
 import type { Message } from "@/types/voice";
 
 interface ChatThreadProps {
@@ -19,9 +21,11 @@ function formatTimestamp(timestamp: number) {
 function FileCard({
   conversationId,
   message,
+  onLoad,
 }: {
   conversationId: string;
   message: Message;
+  onLoad?: () => void;
 }) {
   const file = message.file;
   if (!file) {
@@ -38,6 +42,7 @@ function FileCard({
           src={href}
           alt={file.filename}
           className="max-h-56 max-w-full rounded-xl object-cover"
+          onLoad={onLoad}
         />
         <p className="mt-1 text-xs opacity-80">{file.filename}</p>
       </a>
@@ -64,57 +69,81 @@ export function ChatThread({
   messages,
   emptyLabel = "Start speaking or type a message.",
 }: ChatThreadProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const lastMessage = messages[messages.length - 1];
+  const {
+    scrollRef,
+    showJumpTop,
+    showJumpBottom,
+    scrollToTop,
+    scrollToBottom,
+    followLatest,
+  } = useStickyThreadScroll(
+    conversationId,
+    messages.length
+  );
 
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages]);
+  useLayoutEffect(() => {
+    followLatest();
+  }, [followLatest, lastMessage?.id, lastMessage?.text, lastMessage?.status]);
 
   return (
-    <div ref={scrollRef} className="h-full overflow-y-auto px-4 py-4">
-      {messages.length === 0 ? (
-        <p className="py-10 text-center text-sm text-gray-500 dark:text-gray-400">
-          {emptyLabel}
-        </p>
-      ) : (
-        <div className="mx-auto flex max-w-2xl flex-col gap-4">
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex flex-col ${
-                message.role === "user" ? "items-end" : "items-start"
-              }`}
-            >
+    <div className="absolute inset-0">
+      <div
+        ref={scrollRef}
+        className="h-full overflow-y-auto overscroll-contain px-4 py-4"
+      >
+        {messages.length === 0 ? (
+          <p className="py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+            {emptyLabel}
+          </p>
+        ) : (
+          <div className="mx-auto flex max-w-2xl flex-col gap-4">
+            {messages.map((message) => (
               <div
-                className={`max-w-[85%] rounded-2xl px-4 py-2 ${
-                  message.role === "user"
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white"
-                } ${message.status === "partial" ? "opacity-75" : ""}`}
+                key={message.id}
+                className={`flex flex-col ${
+                  message.role === "user" ? "items-end" : "items-start"
+                }`}
               >
-                {message.file && conversationId ? (
-                  <div className="mb-2">
-                    <FileCard conversationId={conversationId} message={message} />
-                  </div>
-                ) : null}
-                {message.text ? (
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                    {message.text}
-                  </p>
-                ) : (
-                  <p className="text-sm leading-relaxed">...</p>
-                )}
+                <div
+                  className={`max-w-[85%] rounded-2xl px-4 py-2 ${
+                    message.role === "user"
+                      ? "bg-blue-500 text-white"
+                      : "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white"
+                  } ${message.status === "partial" ? "opacity-75" : ""}`}
+                >
+                  {message.file && conversationId ? (
+                    <div className="mb-2">
+                      <FileCard
+                      conversationId={conversationId}
+                      message={message}
+                      onLoad={followLatest}
+                    />
+                    </div>
+                  ) : null}
+                  {message.text ? (
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                      {message.text}
+                    </p>
+                  ) : (
+                    <p className="text-sm leading-relaxed">...</p>
+                  )}
+                </div>
+                <span className="mt-1 px-1 text-xs text-gray-400">
+                  {formatTimestamp(message.timestamp)}
+                  {message.status === "partial" ? " (typing…)" : ""}
+                </span>
               </div>
-              <span className="mt-1 px-1 text-xs text-gray-400">
-                {formatTimestamp(message.timestamp)}
-                {message.status === "partial" ? " (typing…)" : ""}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
+      <ThreadJumpButtons
+        showTop={showJumpTop}
+        showBottom={showJumpBottom}
+        onTop={() => scrollToTop()}
+        onBottom={() => scrollToBottom()}
+      />
     </div>
   );
 }

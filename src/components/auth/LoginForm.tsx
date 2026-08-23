@@ -54,7 +54,7 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
           autoComplete="username"
           required
           autoFocus
-          className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none ring-green-500/40 transition focus:border-green-500 focus:ring-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+          className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none ring-green-500/40 transition focus:border-green-500 focus:ring-2 dark:border-white/10 dark:bg-neutral-900 dark:text-white"
         />
       </div>
 
@@ -71,7 +71,7 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
           type="password"
           autoComplete="current-password"
           required
-          className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none ring-green-500/40 transition focus:border-green-500 focus:ring-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+          className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none ring-green-500/40 transition focus:border-green-500 focus:ring-2 dark:border-white/10 dark:bg-neutral-900 dark:text-white"
         />
       </div>
 

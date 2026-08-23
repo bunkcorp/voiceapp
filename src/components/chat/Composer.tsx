@@ -52,7 +52,7 @@ export function Composer({
 
   return (
     <form onSubmit={submit} className="mx-auto w-full max-w-2xl">
-      <div className="flex items-end gap-2 rounded-2xl border border-gray-200 bg-white p-2 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+      <div className="flex items-end gap-2 rounded-2xl border border-gray-200 bg-white p-2 shadow-sm dark:border-white/10 dark:bg-neutral-900">
         <input
           ref={fileRef}
           type="file"
