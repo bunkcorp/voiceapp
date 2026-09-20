@@ -9,13 +9,13 @@ interface VoiceControlsProps {
   isMuted: boolean;
   sttProvider: SttProvider;
   onSttProviderChange: (provider: SttProvider) => void;
-  monlamRecording?: boolean;
-  monlamUploading?: boolean;
+  tibetanRecording?: boolean;
+  tibetanUploading?: boolean;
   onStart: () => void;
   onEnd: () => void;
   onToggleMute: () => void;
   onToggleTranscript: () => void;
-  onToggleMonlamRecord?: () => void;
+  onToggleTibetanRecord?: () => void;
   onSettings: () => void;
 }
 
@@ -126,7 +126,7 @@ function SttProviderSelect({
         aria-label="Speech to text provider"
       >
         <option value="openai">{labelForSttProvider("openai")}</option>
-        <option value="monlam">{labelForSttProvider("monlam")}</option>
+        <option value="tibetan">{labelForSttProvider("tibetan")}</option>
       </select>
     </label>
   );
@@ -137,13 +137,13 @@ export function VoiceControls({
   isMuted,
   sttProvider,
   onSttProviderChange,
-  monlamRecording = false,
-  monlamUploading = false,
+  tibetanRecording = false,
+  tibetanUploading = false,
   onStart,
   onEnd,
   onToggleMute,
   onToggleTranscript,
-  onToggleMonlamRecord,
+  onToggleTibetanRecord,
   onSettings,
 }: VoiceControlsProps) {
   const isIdle = state === "idle" || state === "ended";
@@ -155,7 +155,7 @@ export function VoiceControls({
     "connecting",
     "reconnecting",
   ].includes(state);
-  const isMonlam = sttProvider === "monlam";
+  const isTibetan = sttProvider === "tibetan";
 
   if (isIdle) {
     return (
@@ -165,34 +165,34 @@ export function VoiceControls({
           onSttProviderChange={onSttProviderChange}
         />
 
-        {isMonlam ? (
+        {isTibetan ? (
           <>
             <button
               type="button"
-              onClick={onToggleMonlamRecord}
-              disabled={monlamUploading || !onToggleMonlamRecord}
+              onClick={onToggleTibetanRecord}
+              disabled={tibetanUploading || !onToggleTibetanRecord}
               className={`flex items-center justify-center w-20 h-20 rounded-full text-white shadow-lg transition-colors touch-manipulation disabled:opacity-50 ${
-                monlamRecording
+                tibetanRecording
                   ? "bg-amber-500 hover:bg-amber-600 active:bg-amber-700"
-                  : monlamUploading
+                  : tibetanUploading
                     ? "bg-gray-400"
                     : "bg-green-500 hover:bg-green-600 active:bg-green-700"
               }`}
               aria-label={
-                monlamRecording
+                tibetanRecording
                   ? "Stop Tibetan recording"
-                  : monlamUploading
+                  : tibetanUploading
                     ? "Transcribing Tibetan audio"
                     : "Start Tibetan recording"
               }
-              aria-pressed={monlamRecording}
+              aria-pressed={tibetanRecording}
             >
               <MicrophoneIcon muted={false} />
             </button>
             <span className="text-sm text-gray-500 dark:text-gray-400">
-              {monlamUploading
-                ? "Transcribing with Monlam…"
-                : monlamRecording
+              {tibetanUploading
+                ? "Transcribing Tibetan…"
+                : tibetanRecording
                   ? "Tap to stop & transcribe"
                   : "Tap to speak Tibetan"}
             </span>
@@ -228,35 +228,35 @@ export function VoiceControls({
       <SttProviderSelect
         sttProvider={sttProvider}
         onSttProviderChange={onSttProviderChange}
-        disabled={isActive && !isMonlam}
+        disabled={isActive && !isTibetan}
       />
 
-      {isMonlam ? (
+      {isTibetan ? (
         <div className="flex flex-col items-center gap-2">
           <button
             type="button"
-            onClick={onToggleMonlamRecord}
-            disabled={monlamUploading || !onToggleMonlamRecord}
+            onClick={onToggleTibetanRecord}
+            disabled={tibetanUploading || !onToggleTibetanRecord}
             className={`flex items-center justify-center w-16 h-16 rounded-full text-white shadow-md transition-colors touch-manipulation disabled:opacity-50 ${
-              monlamRecording
+              tibetanRecording
                 ? "bg-amber-500 hover:bg-amber-600"
                 : "bg-emerald-600 hover:bg-emerald-700"
             }`}
             aria-label={
-              monlamRecording
+              tibetanRecording
                 ? "Stop Tibetan recording"
                 : "Record Tibetan speech"
             }
-            aria-pressed={monlamRecording}
+            aria-pressed={tibetanRecording}
           >
             <MicrophoneIcon muted={false} />
           </button>
           <span className="text-xs text-gray-500 dark:text-gray-400">
-            {monlamUploading
-              ? "Monlam transcribing…"
-              : monlamRecording
+            {tibetanUploading
+              ? "Transcribing Tibetan…"
+              : tibetanRecording
                 ? "Recording Tibetan — tap to stop"
-                : "Record Tibetan (Monlam STT)"}
+                : "Record Tibetan (self-hosted STT)"}
           </span>
         </div>
       ) : null}

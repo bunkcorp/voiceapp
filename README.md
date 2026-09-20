@@ -67,21 +67,40 @@ Copy `.env.example` to `.env.local` (never commit secrets).
 
 **OpenAI / GitHub** — see `.env.example`.
 
-### Tibetan speech-to-text (Monlam AI)
+### Tibetan speech-to-text (self-hosted, preferred)
 
-Hosted Monlam STT is used when the UI speech-to-text selector is set to **Tibetan (Monlam)**.
-Audio is recorded in the browser and transcribed server-side via `POST /api/stt/monlam`, which calls Monlam `POST /api/v1/stt/file` with `lang=bo`.
+Run an open Apache-2.0 Whisper fine-tune on your Mac — **no Monlam API key required**.
+
+Default model: [`billingsmoore/tibetan-asr-nict-tib1-whisper-small`](https://huggingface.co/billingsmoore/tibetan-asr-nict-tib1-whisper-small) (~244M params, ~1GB disk, ~2–4GB RAM). With 128GB RAM this is trivial. There is no public Whisper-large Tibetan fine-tune; this small fine-tune beats larger untuned Whisper for Tibetan.
+
+```bash
+cd services/tibetan-stt
+./run.sh   # http://127.0.0.1:8080  (MPS on Apple Silicon when available)
+```
 
 | Variable | Purpose |
 | --- | --- |
-| `MONLAM_API_KEY` | Bearer token from Monlam (required to enable Tibetan STT) |
-| `MONLAM_API_BASE_URL` | API base URL (default `https://api.monlam.ai`; use your self-hosted monlamai-API URL if needed) |
+| `TIBETAN_STT_URL` | Base URL of your STT service (e.g. `http://127.0.0.1:8080`) |
+| `SELF_HOSTED_STT_URL` | Alias of `TIBETAN_STT_URL` |
+| `TIBETAN_STT_API_KEY` / `SELF_HOSTED_STT_API_KEY` | Optional Bearer key (must match `STT_API_KEY` on the service) |
 
-Request access from [contact@monlam.ai](mailto:contact@monlam.ai) or [officials@monlam.com](mailto:officials@monlam.com). Never commit the key.
+UI selector **Tibetan** → browser records → `POST /api/stt/tibetan` → your local `/transcribe`.
 
-Without `MONLAM_API_KEY`, choosing Tibetan STT shows a clear configuration error instead of calling Monlam.
+**Local app:** set `TIBETAN_STT_URL=http://127.0.0.1:8080` in `.env.local`.  
+**Vercel → your Mac:** only via a secure tunnel (Cloudflare Tunnel / Tailscale) with an API key — Vercel cannot reach localhost. Or run Next locally against local STT.
 
-Self-host alternative: run [monlamai-API](https://github.com/MonlamAI/monlamai-API) or use `pip install monlam-stt` (MIT) for local model inference; point `MONLAM_API_BASE_URL` at your hosted API when using the FastAPI service.
+See [`services/tibetan-stt/README.md`](services/tibetan-stt/README.md) for Docker, model options, and security notes.
+
+### Optional Monlam cloud fallback
+
+| Variable | Purpose |
+| --- | --- |
+| `MONLAM_API_KEY` | Bearer token from Monlam (optional fallback only) |
+| `MONLAM_API_BASE_URL` | Default `https://api.monlam.ai` |
+
+Used only when `TIBETAN_STT_URL` / `SELF_HOSTED_STT_URL` is unset. Never commit the key.
+
+Note: `pip install monlam-stt` is **not** local inference — it is a thin client to a remote HF endpoint.
 
 ## Cloudflare store deploy (users migration)
 

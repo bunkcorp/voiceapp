@@ -48,8 +48,8 @@ export function getMonlamConfig() {
 
 export function monlamMissingKeyMessage() {
   return (
-    "Monlam STT is not configured. Set MONLAM_API_KEY (and optionally MONLAM_API_BASE_URL) " +
-    "on the server. Request API access from contact@monlam.ai or officials@monlam.com."
+    "Monlam cloud STT is not configured. Prefer TIBETAN_STT_URL / SELF_HOSTED_STT_URL " +
+    "(see services/tibetan-stt), or optionally set MONLAM_API_KEY / MONLAM_API_BASE_URL."
   );
 }
 

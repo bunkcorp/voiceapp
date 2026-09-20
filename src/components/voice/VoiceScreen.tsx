@@ -6,7 +6,7 @@ import {
   readStoredSttProvider,
   useVoiceStore,
 } from "@/stores/voiceStore";
-import { useMonlamStt, useRealtimeVoice } from "@/hooks";
+import { useTibetanStt, useRealtimeVoice } from "@/hooks";
 import { useChatSession } from "@/hooks/useChatSession";
 import type { SttProvider } from "@/lib/stt";
 import { VoiceOrb } from "./VoiceOrb";
@@ -49,30 +49,30 @@ function VoiceScreenInner() {
     isMuted,
   } = useRealtimeVoice();
 
-  const mutedForMonlamRef = useRef(false);
+  const mutedForTibetanRef = useRef(false);
 
   useEffect(() => {
     setSttProvider(readStoredSttProvider());
   }, [setSttProvider]);
 
-  const handleMonlamTranscript = useCallback(
+  const handleTibetanTranscript = useCallback(
     (text: string) => {
       sendText(text);
     },
     [sendText]
   );
 
-  const handleMonlamRecordingChange = useCallback(
+  const handleTibetanRecordingChange = useCallback(
     (recording: boolean) => {
       if (recording) {
         if (!useVoiceStore.getState().isMuted) {
           mute();
-          mutedForMonlamRef.current = true;
+          mutedForTibetanRef.current = true;
         }
         return;
       }
-      if (mutedForMonlamRef.current) {
-        mutedForMonlamRef.current = false;
+      if (mutedForTibetanRef.current) {
+        mutedForTibetanRef.current = false;
         unmute();
       }
     },
@@ -80,25 +80,26 @@ function VoiceScreenInner() {
   );
 
   const {
-    status: monlamStatus,
-    error: monlamError,
-    toggleRecording: toggleMonlamRecord,
-    clearError: clearMonlamError,
-  } = useMonlamStt({
-    onTranscript: handleMonlamTranscript,
-    onRecordingChange: handleMonlamRecordingChange,
+    status: tibetanStatus,
+    error: tibetanError,
+    toggleRecording: toggleTibetanRecord,
+    clearError: clearTibetanError,
+  } = useTibetanStt({
+    onTranscript: handleTibetanTranscript,
+    onRecordingChange: handleTibetanRecordingChange,
   });
 
   useEffect(() => {
-    if (!monlamError) {
+    if (!tibetanError) {
       return;
     }
     setError({
-      code: "monlam_stt",
-      message: monlamError,
-      action: "Set MONLAM_API_KEY or contact Monlam for access, then try again.",
+      code: "tibetan_stt",
+      message: tibetanError,
+      action:
+        "Run services/tibetan-stt locally and set TIBETAN_STT_URL / SELF_HOSTED_STT_URL, then try again.",
     });
-  }, [monlamError, setError]);
+  }, [tibetanError, setError]);
 
   const {
     conversations,
@@ -157,15 +158,15 @@ function VoiceScreenInner() {
 
   const handleDismissError = useCallback(() => {
     setError(null);
-    clearMonlamError();
-  }, [clearMonlamError, setError]);
+    clearTibetanError();
+  }, [clearTibetanError, setError]);
 
   const handleSttProviderChange = useCallback(
     (provider: SttProvider) => {
       setSttProvider(provider);
-      clearMonlamError();
+      clearTibetanError();
     },
-    [clearMonlamError, setSttProvider]
+    [clearTibetanError, setSttProvider]
   );
 
   const handleSendText = useCallback(
@@ -362,14 +363,14 @@ function VoiceScreenInner() {
             isMuted={isMuted}
             sttProvider={sttProvider}
             onSttProviderChange={handleSttProviderChange}
-            monlamRecording={monlamStatus === "recording"}
-            monlamUploading={monlamStatus === "uploading"}
+            tibetanRecording={tibetanStatus === "recording"}
+            tibetanUploading={tibetanStatus === "uploading"}
             onStart={handleStart}
             onEnd={handleEnd}
             onToggleMute={handleToggleMute}
             onToggleTranscript={handleToggleTranscript}
-            onToggleMonlamRecord={() => {
-              void toggleMonlamRecord();
+            onToggleTibetanRecord={() => {
+              void toggleTibetanRecord();
             }}
             onSettings={handleSettings}
           />

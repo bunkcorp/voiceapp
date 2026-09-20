@@ -22,10 +22,7 @@ function jsonError(error: string, status: number, extra?: Record<string, unknown
   );
 }
 
-/**
- * Legacy alias of /api/stt/tibetan.
- * Prefers SELF_HOSTED_STT_URL; falls back to Monlam cloud when MONLAM_API_KEY is set.
- */
+/** GET: whether Tibetan STT is configured (never exposes keys). */
 export async function GET(request: NextRequest) {
   if (!isValidSessionToken(request.cookies.get(SESSION_COOKIE)?.value)) {
     return jsonError("Unauthorized", 401);
@@ -38,8 +35,9 @@ export async function GET(request: NextRequest) {
       backend: status.backend,
       selfHostedConfigured: status.selfHostedConfigured,
       monlamConfigured: status.monlamConfigured,
-      baseUrl: status.selfHostedUrl ?? status.monlamBaseUrl,
-      lang: MONLAM_TIBETAN_LANG,
+      selfHostedUrl: status.selfHostedUrl,
+      monlamBaseUrl: status.monlamBaseUrl,
+      lang: status.lang,
       provider: "tibetan",
       message: status.configured ? undefined : tibetanSttMissingConfigMessage(),
     },
@@ -47,6 +45,10 @@ export async function GET(request: NextRequest) {
   );
 }
 
+/**
+ * POST multipart: `file` (audio), optional `lang` (default `bo`).
+ * Uses SELF_HOSTED_STT_URL first; falls back to Monlam cloud if MONLAM_API_KEY is set.
+ */
 export async function POST(request: NextRequest) {
   if (!isValidSessionToken(request.cookies.get(SESSION_COOKIE)?.value)) {
     return jsonError("Unauthorized", 401);
@@ -59,7 +61,8 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  if (!getTibetanSttStatus().configured) {
+  const status = getTibetanSttStatus();
+  if (!status.configured) {
     return jsonError(tibetanSttMissingConfigMessage(), 503, {
       code: "tibetan_stt_not_configured",
     });
@@ -113,7 +116,7 @@ export async function POST(request: NextRequest) {
 
     if (error instanceof TibetanSttApiError) {
       console.error(
-        "[api/stt/monlam] STT error:",
+        "[api/stt/tibetan] STT error:",
         error.backend,
         error.status,
         error.details
@@ -131,7 +134,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    console.error("[api/stt/monlam] Error:", error);
+    console.error("[api/stt/tibetan] Error:", error);
     return jsonError("Internal server error", 500);
   }
 }

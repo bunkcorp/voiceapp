@@ -7,6 +7,7 @@ import type {
 } from "@/types/voice";
 import {
   isSttProvider,
+  normalizeSttProvider,
   STT_PROVIDER_STORAGE_KEY,
   type SttProvider,
 } from "@/lib/stt";
@@ -18,7 +19,7 @@ export function readStoredSttProvider(): SttProvider {
   try {
     const stored = window.localStorage.getItem(STT_PROVIDER_STORAGE_KEY);
     if (isSttProvider(stored)) {
-      return stored;
+      return normalizeSttProvider(stored);
     }
   } catch {
     // ignore
@@ -75,14 +76,15 @@ export const useVoiceStore = create<VoiceStore>((set) => ({
   setSessionStartTime: (sessionStartTime) => set({ sessionStartTime }),
   setTranscriptVisible: (isTranscriptVisible) => set({ isTranscriptVisible }),
   setSttProvider: (sttProvider) => {
+    const normalized = normalizeSttProvider(sttProvider);
     try {
       if (typeof window !== "undefined") {
-        window.localStorage.setItem(STT_PROVIDER_STORAGE_KEY, sttProvider);
+        window.localStorage.setItem(STT_PROVIDER_STORAGE_KEY, normalized);
       }
     } catch {
       // ignore
     }
-    set({ sttProvider });
+    set({ sttProvider: normalized });
   },
   addMessage: (message) =>
     set((s) => ({ messages: [...s.messages, message] })),

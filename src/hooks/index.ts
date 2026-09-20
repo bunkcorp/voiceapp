@@ -1,6 +1,6 @@
 export { useMicrophone } from "./useMicrophone";
 export { useRealtimeVoice } from "./useRealtimeVoice";
-export { useMonlamStt } from "./useMonlamStt";
+export { useTibetanStt, useMonlamStt } from "./useMonlamStt";
 export { useChatSession } from "./useChatSession";
 export { useStickyThreadScroll } from "./useStickyThreadScroll";
 export { useTheme } from "./useTheme";

@@ -2,20 +2,23 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export type MonlamSttStatus =
+export type TibetanSttStatus =
   | "idle"
   | "recording"
   | "uploading"
   | "error";
 
-interface UseMonlamSttOptions {
+/** @deprecated Use TibetanSttStatus */
+export type MonlamSttStatus = TibetanSttStatus;
+
+interface UseTibetanSttOptions {
   onTranscript?: (text: string) => void;
   /** Mute OpenAI mic while recording Tibetan so both don't compete. */
   onRecordingChange?: (recording: boolean) => void;
 }
 
-interface UseMonlamSttReturn {
-  status: MonlamSttStatus;
+interface UseTibetanSttReturn {
+  status: TibetanSttStatus;
   error: string | null;
   configured: boolean | null;
   startRecording: () => Promise<void>;
@@ -37,11 +40,11 @@ function pickRecorderMimeType() {
   return candidates.find((type) => MediaRecorder.isTypeSupported(type)) ?? "";
 }
 
-export function useMonlamStt(
-  options: UseMonlamSttOptions = {}
-): UseMonlamSttReturn {
+export function useTibetanStt(
+  options: UseTibetanSttOptions = {}
+): UseTibetanSttReturn {
   const { onTranscript, onRecordingChange } = options;
-  const [status, setStatus] = useState<MonlamSttStatus>("idle");
+  const [status, setStatus] = useState<TibetanSttStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [configured, setConfigured] = useState<boolean | null>(null);
 
@@ -63,7 +66,7 @@ export function useMonlamStt(
     let cancelled = false;
     void (async () => {
       try {
-        const response = await fetch("/api/stt/monlam", {
+        const response = await fetch("/api/stt/tibetan", {
           credentials: "same-origin",
         });
         if (!response.ok) {
@@ -101,7 +104,7 @@ export function useMonlamStt(
     form.set("file", blob, `tibetan-recording.${extension}`);
     form.set("lang", "bo");
 
-    const response = await fetch("/api/stt/monlam", {
+    const response = await fetch("/api/stt/tibetan", {
       method: "POST",
       credentials: "same-origin",
       body: form,
@@ -117,14 +120,14 @@ export function useMonlamStt(
       throw new Error(
         data.error ||
           (response.status === 503
-            ? "Monlam STT is not configured on the server."
+            ? "Tibetan STT is not configured on the server."
             : "Tibetan transcription failed")
       );
     }
 
     const text = data.text?.trim();
     if (!text) {
-      throw new Error("Monlam returned an empty transcript");
+      throw new Error("Tibetan STT returned an empty transcript");
     }
 
     onTranscriptRef.current?.(text);
@@ -136,7 +139,7 @@ export function useMonlamStt(
 
     if (configured === false) {
       setError(
-        "Monlam STT is not configured. Set MONLAM_API_KEY on the server, or ask for access at contact@monlam.ai / officials@monlam.com."
+        "Tibetan STT is not configured. Run services/tibetan-stt on your Mac and set TIBETAN_STT_URL or SELF_HOSTED_STT_URL, or set MONLAM_API_KEY as an optional fallback."
       );
       setStatus("error");
       return;
@@ -276,3 +279,6 @@ export function useMonlamStt(
     clearError,
   };
 }
+
+/** @deprecated Use useTibetanStt */
+export const useMonlamStt = useTibetanStt;
