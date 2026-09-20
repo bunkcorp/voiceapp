@@ -1,10 +1,14 @@
 "use client";
 
-import { useEffect, useState, useCallback, Suspense } from "react";
+import { useEffect, useState, useCallback, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { useVoiceStore } from "@/stores/voiceStore";
-import { useRealtimeVoice } from "@/hooks";
+import {
+  readStoredSttProvider,
+  useVoiceStore,
+} from "@/stores/voiceStore";
+import { useMonlamStt, useRealtimeVoice } from "@/hooks";
 import { useChatSession } from "@/hooks/useChatSession";
+import type { SttProvider } from "@/lib/stt";
 import { VoiceOrb } from "./VoiceOrb";
 import { VoiceControls } from "./VoiceControls";
 import { ConnectionStatus } from "./ConnectionStatus";
@@ -27,19 +31,74 @@ function VoiceScreenInner() {
     audioLevels,
     sessionStartTime,
     isTranscriptVisible,
+    sttProvider,
     setError,
     setTranscriptVisible,
+    setSttProvider,
   } = useVoiceStore();
 
   const {
     state,
     connect,
     disconnect,
+    mute,
+    unmute,
     toggleMute,
     sendText,
     sendAttachment,
     isMuted,
   } = useRealtimeVoice();
+
+  const mutedForMonlamRef = useRef(false);
+
+  useEffect(() => {
+    setSttProvider(readStoredSttProvider());
+  }, [setSttProvider]);
+
+  const handleMonlamTranscript = useCallback(
+    (text: string) => {
+      sendText(text);
+    },
+    [sendText]
+  );
+
+  const handleMonlamRecordingChange = useCallback(
+    (recording: boolean) => {
+      if (recording) {
+        if (!useVoiceStore.getState().isMuted) {
+          mute();
+          mutedForMonlamRef.current = true;
+        }
+        return;
+      }
+      if (mutedForMonlamRef.current) {
+        mutedForMonlamRef.current = false;
+        unmute();
+      }
+    },
+    [mute, unmute]
+  );
+
+  const {
+    status: monlamStatus,
+    error: monlamError,
+    toggleRecording: toggleMonlamRecord,
+    clearError: clearMonlamError,
+  } = useMonlamStt({
+    onTranscript: handleMonlamTranscript,
+    onRecordingChange: handleMonlamRecordingChange,
+  });
+
+  useEffect(() => {
+    if (!monlamError) {
+      return;
+    }
+    setError({
+      code: "monlam_stt",
+      message: monlamError,
+      action: "Set MONLAM_API_KEY or contact Monlam for access, then try again.",
+    });
+  }, [monlamError, setError]);
 
   const {
     conversations,
@@ -98,7 +157,16 @@ function VoiceScreenInner() {
 
   const handleDismissError = useCallback(() => {
     setError(null);
-  }, [setError]);
+    clearMonlamError();
+  }, [clearMonlamError, setError]);
+
+  const handleSttProviderChange = useCallback(
+    (provider: SttProvider) => {
+      setSttProvider(provider);
+      clearMonlamError();
+    },
+    [clearMonlamError, setSttProvider]
+  );
 
   const handleSendText = useCallback(
     (text: string) => {
@@ -292,10 +360,17 @@ function VoiceScreenInner() {
           <VoiceControls
             state={state}
             isMuted={isMuted}
+            sttProvider={sttProvider}
+            onSttProviderChange={handleSttProviderChange}
+            monlamRecording={monlamStatus === "recording"}
+            monlamUploading={monlamStatus === "uploading"}
             onStart={handleStart}
             onEnd={handleEnd}
             onToggleMute={handleToggleMute}
             onToggleTranscript={handleToggleTranscript}
+            onToggleMonlamRecord={() => {
+              void toggleMonlamRecord();
+            }}
             onSettings={handleSettings}
           />
         </footer>

@@ -67,6 +67,22 @@ Copy `.env.example` to `.env.local` (never commit secrets).
 
 **OpenAI / GitHub** — see `.env.example`.
 
+### Tibetan speech-to-text (Monlam AI)
+
+Hosted Monlam STT is used when the UI speech-to-text selector is set to **Tibetan (Monlam)**.
+Audio is recorded in the browser and transcribed server-side via `POST /api/stt/monlam`, which calls Monlam `POST /api/v1/stt/file` with `lang=bo`.
+
+| Variable | Purpose |
+| --- | --- |
+| `MONLAM_API_KEY` | Bearer token from Monlam (required to enable Tibetan STT) |
+| `MONLAM_API_BASE_URL` | API base URL (default `https://api.monlam.ai`; use your self-hosted monlamai-API URL if needed) |
+
+Request access from [contact@monlam.ai](mailto:contact@monlam.ai) or [officials@monlam.com](mailto:officials@monlam.com). Never commit the key.
+
+Without `MONLAM_API_KEY`, choosing Tibetan STT shows a clear configuration error instead of calling Monlam.
+
+Self-host alternative: run [monlamai-API](https://github.com/MonlamAI/monlamai-API) or use `pip install monlam-stt` (MIT) for local model inference; point `MONLAM_API_BASE_URL` at your hosted API when using the FastAPI service.
+
 ## Cloudflare store deploy (users migration)
 
 From `cloudflare/voiceapp-store`:

@@ -1,14 +1,21 @@
 "use client";
 
 import type { VoiceSessionState } from "@/types/voice";
+import type { SttProvider } from "@/lib/stt";
+import { labelForSttProvider } from "@/lib/stt";
 
 interface VoiceControlsProps {
   state: VoiceSessionState;
   isMuted: boolean;
+  sttProvider: SttProvider;
+  onSttProviderChange: (provider: SttProvider) => void;
+  monlamRecording?: boolean;
+  monlamUploading?: boolean;
   onStart: () => void;
   onEnd: () => void;
   onToggleMute: () => void;
   onToggleTranscript: () => void;
+  onToggleMonlamRecord?: () => void;
   onSettings: () => void;
 }
 
@@ -95,13 +102,48 @@ function SettingsIcon() {
   );
 }
 
+function SttProviderSelect({
+  sttProvider,
+  onSttProviderChange,
+  disabled,
+}: {
+  sttProvider: SttProvider;
+  onSttProviderChange: (provider: SttProvider) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <label className="flex w-full max-w-xs flex-col gap-1.5 text-center">
+      <span className="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
+        Speech to text
+      </span>
+      <select
+        value={sttProvider}
+        disabled={disabled}
+        onChange={(event) =>
+          onSttProviderChange(event.target.value as SttProvider)
+        }
+        className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 shadow-sm outline-none transition focus:border-gray-400 disabled:opacity-50 dark:border-white/10 dark:bg-neutral-900 dark:text-gray-100 dark:focus:border-white/30"
+        aria-label="Speech to text provider"
+      >
+        <option value="openai">{labelForSttProvider("openai")}</option>
+        <option value="monlam">{labelForSttProvider("monlam")}</option>
+      </select>
+    </label>
+  );
+}
+
 export function VoiceControls({
   state,
   isMuted,
+  sttProvider,
+  onSttProviderChange,
+  monlamRecording = false,
+  monlamUploading = false,
   onStart,
   onEnd,
   onToggleMute,
   onToggleTranscript,
+  onToggleMonlamRecord,
   onSettings,
 }: VoiceControlsProps) {
   const isIdle = state === "idle" || state === "ended";
@@ -113,28 +155,115 @@ export function VoiceControls({
     "connecting",
     "reconnecting",
   ].includes(state);
+  const isMonlam = sttProvider === "monlam";
 
   if (isIdle) {
     return (
       <div className="flex flex-col items-center gap-4">
-        <button
-          onClick={onStart}
-          className="flex items-center justify-center w-20 h-20 rounded-full bg-green-500 hover:bg-green-600 active:bg-green-700 text-white shadow-lg transition-colors touch-manipulation"
-          aria-label="Start voice conversation"
-        >
-          <PhoneIcon />
-        </button>
-        <span className="text-sm text-gray-500 dark:text-gray-400">
-          Tap to start
-        </span>
+        <SttProviderSelect
+          sttProvider={sttProvider}
+          onSttProviderChange={onSttProviderChange}
+        />
+
+        {isMonlam ? (
+          <>
+            <button
+              type="button"
+              onClick={onToggleMonlamRecord}
+              disabled={monlamUploading || !onToggleMonlamRecord}
+              className={`flex items-center justify-center w-20 h-20 rounded-full text-white shadow-lg transition-colors touch-manipulation disabled:opacity-50 ${
+                monlamRecording
+                  ? "bg-amber-500 hover:bg-amber-600 active:bg-amber-700"
+                  : monlamUploading
+                    ? "bg-gray-400"
+                    : "bg-green-500 hover:bg-green-600 active:bg-green-700"
+              }`}
+              aria-label={
+                monlamRecording
+                  ? "Stop Tibetan recording"
+                  : monlamUploading
+                    ? "Transcribing Tibetan audio"
+                    : "Start Tibetan recording"
+              }
+              aria-pressed={monlamRecording}
+            >
+              <MicrophoneIcon muted={false} />
+            </button>
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              {monlamUploading
+                ? "Transcribing with Monlam…"
+                : monlamRecording
+                  ? "Tap to stop & transcribe"
+                  : "Tap to speak Tibetan"}
+            </span>
+            <button
+              type="button"
+              onClick={onStart}
+              className="text-sm text-gray-500 underline-offset-2 hover:underline dark:text-gray-400"
+            >
+              Or start OpenAI voice session
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={onStart}
+              className="flex items-center justify-center w-20 h-20 rounded-full bg-green-500 hover:bg-green-600 active:bg-green-700 text-white shadow-lg transition-colors touch-manipulation"
+              aria-label="Start voice conversation"
+            >
+              <PhoneIcon />
+            </button>
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              Tap to start
+            </span>
+          </>
+        )}
       </div>
     );
   }
 
   return (
     <div className="flex flex-col items-center gap-6">
+      <SttProviderSelect
+        sttProvider={sttProvider}
+        onSttProviderChange={onSttProviderChange}
+        disabled={isActive && !isMonlam}
+      />
+
+      {isMonlam ? (
+        <div className="flex flex-col items-center gap-2">
+          <button
+            type="button"
+            onClick={onToggleMonlamRecord}
+            disabled={monlamUploading || !onToggleMonlamRecord}
+            className={`flex items-center justify-center w-16 h-16 rounded-full text-white shadow-md transition-colors touch-manipulation disabled:opacity-50 ${
+              monlamRecording
+                ? "bg-amber-500 hover:bg-amber-600"
+                : "bg-emerald-600 hover:bg-emerald-700"
+            }`}
+            aria-label={
+              monlamRecording
+                ? "Stop Tibetan recording"
+                : "Record Tibetan speech"
+            }
+            aria-pressed={monlamRecording}
+          >
+            <MicrophoneIcon muted={false} />
+          </button>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            {monlamUploading
+              ? "Monlam transcribing…"
+              : monlamRecording
+                ? "Recording Tibetan — tap to stop"
+                : "Record Tibetan (Monlam STT)"}
+          </span>
+        </div>
+      ) : null}
+
       <div className="flex items-center justify-center gap-6">
         <button
+          type="button"
           onClick={onToggleMute}
           disabled={!isActive}
           className={`flex items-center justify-center w-14 h-14 rounded-full transition-colors touch-manipulation ${
@@ -149,6 +278,7 @@ export function VoiceControls({
         </button>
 
         <button
+          type="button"
           onClick={onEnd}
           disabled={!isActive}
           className={`flex items-center justify-center w-20 h-20 rounded-full bg-red-500 text-white shadow-lg transition-colors touch-manipulation ${
@@ -162,6 +292,7 @@ export function VoiceControls({
         </button>
 
         <button
+          type="button"
           onClick={onToggleTranscript}
           className="flex items-center justify-center w-14 h-14 rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-neutral-800 dark:text-gray-300 dark:hover:bg-neutral-700 transition-colors touch-manipulation"
           aria-label="Show transcript"
@@ -172,6 +303,7 @@ export function VoiceControls({
       </div>
 
       <button
+        type="button"
         onClick={onSettings}
         className="flex items-center justify-center w-10 h-10 rounded-full text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors touch-manipulation"
         aria-label="Settings"

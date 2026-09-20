@@ -5,6 +5,26 @@ import type {
   VoiceError,
   AudioLevels,
 } from "@/types/voice";
+import {
+  isSttProvider,
+  STT_PROVIDER_STORAGE_KEY,
+  type SttProvider,
+} from "@/lib/stt";
+
+export function readStoredSttProvider(): SttProvider {
+  if (typeof window === "undefined") {
+    return "openai";
+  }
+  try {
+    const stored = window.localStorage.getItem(STT_PROVIDER_STORAGE_KEY);
+    if (isSttProvider(stored)) {
+      return stored;
+    }
+  } catch {
+    // ignore
+  }
+  return "openai";
+}
 
 interface VoiceStore {
   state: VoiceSessionState;
@@ -14,6 +34,7 @@ interface VoiceStore {
   audioLevels: AudioLevels;
   sessionStartTime: number | null;
   isTranscriptVisible: boolean;
+  sttProvider: SttProvider;
 
   setState: (state: VoiceSessionState) => void;
   setError: (error: VoiceError | null) => void;
@@ -21,6 +42,7 @@ interface VoiceStore {
   setAudioLevels: (levels: Partial<AudioLevels>) => void;
   setSessionStartTime: (time: number | null) => void;
   setTranscriptVisible: (visible: boolean) => void;
+  setSttProvider: (provider: SttProvider) => void;
 
   addMessage: (message: Message) => void;
   updateMessage: (id: string, updates: Partial<Message>) => void;
@@ -39,6 +61,7 @@ const initialState = {
   audioLevels: { microphone: 0, speaker: 0 },
   sessionStartTime: null,
   isTranscriptVisible: false,
+  sttProvider: "openai" as SttProvider,
 };
 
 export const useVoiceStore = create<VoiceStore>((set) => ({
@@ -51,7 +74,16 @@ export const useVoiceStore = create<VoiceStore>((set) => ({
     set((s) => ({ audioLevels: { ...s.audioLevels, ...levels } })),
   setSessionStartTime: (sessionStartTime) => set({ sessionStartTime }),
   setTranscriptVisible: (isTranscriptVisible) => set({ isTranscriptVisible }),
-
+  setSttProvider: (sttProvider) => {
+    try {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(STT_PROVIDER_STORAGE_KEY, sttProvider);
+      }
+    } catch {
+      // ignore
+    }
+    set({ sttProvider });
+  },
   addMessage: (message) =>
     set((s) => ({ messages: [...s.messages, message] })),
   updateMessage: (id, updates) =>
