@@ -6,7 +6,6 @@ import {
   getUserByEmail,
   listUsers,
   type PublicUser,
-  type StoredUser,
 } from "@/lib/server/users";
 import { normalizeEmail } from "@/lib/server/validation";
 
@@ -129,20 +128,24 @@ export function readSessionUser(
     return null;
   }
 
-  let secret: string;
   try {
-    secret = getSessionSecret();
+    getSessionSecret();
   } catch {
     return null;
   }
-  void secret;
 
   const [encoded, signature] = token.split(".");
   if (!encoded || !signature) {
     return null;
   }
 
-  const expected = signPayload(encoded);
+  let expected: string;
+  try {
+    expected = signPayload(encoded);
+  } catch {
+    return null;
+  }
+
   if (!signaturesMatch(signature, expected)) {
     return null;
   }
@@ -194,16 +197,6 @@ function matchesEnvIdentifier(identifier: string) {
     }
   }
   return false;
-}
-
-function userMatchesIdentifier(user: StoredUser, identifier: string) {
-  const submitted = normalizeIdentifier(identifier);
-  const email = normalizeEmail(user.email);
-  if (timingSafeStringEqual(submitted, email)) {
-    return true;
-  }
-  const localPart = email.split("@")[0] ?? "";
-  return Boolean(localPart) && timingSafeStringEqual(submitted, localPart);
 }
 
 async function findUserByIdentifier(identifier: string) {
@@ -293,8 +286,12 @@ async function tryEnvEmergencyLogin(
     return null;
   }
 
-  const email = normalizeEmail(user.includes("@") ? user : `${user}@local`);
-  let stored = await getUserByEmail(email);
+  const email = normalizeEmail(user);
+  if (!email.includes("@")) {
+    return null;
+  }
+
+  const stored = await getUserByEmail(email);
   if (!stored) {
     const passwordHash = await hashPassword(password);
     const created = await createUser({ email, passwordHash });
@@ -322,7 +319,7 @@ export async function authenticateUser(
   return tryEnvEmergencyLogin(identifier, password);
 }
 
-/** @deprecated Prefer authenticateUser — kept for call sites that still sync-check env. */
+/** Sync env-only check (emergency tooling). Prefer authenticateUser for login. */
 export function verifyCredentials(identifier: string, password: string) {
   const { password: expectedPassword } = getAuthConfig();
   if (!expectedPassword) {

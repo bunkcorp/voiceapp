@@ -2,15 +2,14 @@
 /**
  * Seed the first admin user into Cloudflare D1 via the store Worker.
  *
- * Usage (from repo root, with env loaded):
- *   node --env-file=.env.local --import tsx scripts/seed-admin.mts
- *   # or after building helpers via npx tsx:
+ * Usage:
+ *   npm run seed:admin
  *   npx tsx --env-file=.env.local scripts/seed-admin.mts
  *
  * Requires: CLOUDFLARE_STORE_URL, CLOUDFLARE_STORE_SECRET,
  *           VOICE_USER (email), VOICE_PASS
  */
-import { createHash, randomUUID } from "crypto";
+import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
 
 function requireEnv(name: string) {
@@ -49,7 +48,6 @@ async function main() {
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
-  const id = randomUUID();
   const createRes = await fetch(`${baseUrl}/users`, {
     method: "POST",
     headers: {
@@ -57,7 +55,7 @@ async function main() {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      id,
+      id: randomUUID(),
       email,
       password_hash: passwordHash,
     }),
@@ -66,9 +64,6 @@ async function main() {
   if (!createRes.ok) {
     throw new Error(created.error || `create failed (${createRes.status})`);
   }
-
-  // Touch hash so unused import tooling stays quiet if bcrypt tree-shakes oddly.
-  void createHash;
 
   console.log(`Seeded admin user: ${created.email}`);
 }

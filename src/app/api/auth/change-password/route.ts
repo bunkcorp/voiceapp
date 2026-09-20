@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let user =
+    const user =
       (session ? await getUserById(session.id) : null) ??
       (session ? await getUserByEmail(session.email) : null);
 
