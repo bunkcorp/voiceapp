@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   SESSION_COOKIE,
   createSessionToken,
-  ensureSeedUser,
   sessionCookieOptions,
 } from "@/lib/server/auth";
 import { hashPassword } from "@/lib/server/password";
@@ -18,6 +17,72 @@ import {
 export const runtime = "nodejs";
 
 const NO_STORE = { "Cache-Control": "no-store" };
+
+function signupFailureResponse(error: unknown) {
+  if (error instanceof StoreRequestError) {
+    if (error.status === 409) {
+      return NextResponse.json(
+        { error: "An account with that email already exists" },
+        { status: 409, headers: NO_STORE }
+      );
+    }
+    if (error.status === 401 || error.status === 403) {
+      return NextResponse.json(
+        {
+          error:
+            "Account service is misconfigured. Ask an admin to check the store credentials.",
+        },
+        { status: 503, headers: NO_STORE }
+      );
+    }
+    if (error.status === 404) {
+      return NextResponse.json(
+        {
+          error:
+            "Account service is outdated or unreachable. Try again later, or ask an admin to redeploy the store.",
+        },
+        { status: 503, headers: NO_STORE }
+      );
+    }
+    if (error.status >= 500) {
+      return NextResponse.json(
+        {
+          error:
+            "Account service is temporarily unavailable. Try again in a moment.",
+        },
+        { status: 503, headers: NO_STORE }
+      );
+    }
+  }
+
+  const message = error instanceof Error ? error.message : "";
+  if (/not configured|required to sign sessions/i.test(message)) {
+    return NextResponse.json(
+      {
+        error:
+          "Sign-up is not configured on this server. Ask an admin to set the required environment variables.",
+      },
+      { status: 503, headers: NO_STORE }
+    );
+  }
+  if (
+    error instanceof TypeError ||
+    /fetch failed|ECONNREFUSED|ENOTFOUND|network/i.test(message)
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "Could not reach the account service. Check your connection and try again.",
+      },
+      { status: 503, headers: NO_STORE }
+    );
+  }
+
+  return NextResponse.json(
+    { error: "Could not create account" },
+    { status: 500, headers: NO_STORE }
+  );
+}
 
 async function readBody(request: NextRequest) {
   const contentType = request.headers.get("content-type") ?? "";
@@ -54,7 +119,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await ensureSeedUser();
+    // Do not seed VOICE_USER here — that would create the env account first and
+    // make signup for the same email fail with "already exists". Seeding stays
+    // on login via ensureSeedUser().
     const { email, password } = await readBody(request);
 
     if (!isValidEmail(email)) {
@@ -89,15 +156,6 @@ export async function POST(request: NextRequest) {
     );
     return response;
   } catch (error) {
-    if (error instanceof StoreRequestError && error.status === 409) {
-      return NextResponse.json(
-        { error: "An account with that email already exists" },
-        { status: 409, headers: NO_STORE }
-      );
-    }
-    return NextResponse.json(
-      { error: "Could not create account" },
-      { status: 500, headers: NO_STORE }
-    );
+    return signupFailureResponse(error);
   }
 }

@@ -34,6 +34,9 @@ services/tibetan-stt/.venv/
 # Vercel
 .vercel
 
+# Cloudflare Wrangler local state
+**/.wrangler/
+
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
