@@ -116,6 +116,19 @@ npx wrangler deploy
 
 Set `STORE_SECRET` as a Worker secret (`wrangler secret put STORE_SECRET`) and match it in Vercel as `CLOUDFLARE_STORE_SECRET`.
 
+## Formula sheet knowledge (ALTAM / FAM)
+
+The voice assistant can search and read bundled memorization scripts under `docs/formula-sheets/` (not Desktop paths, not RAG). Tools: `list_knowledge_docs`, `search_knowledge`, `get_knowledge_section`.
+
+Refresh after updating scripts in ActuarialExams:
+
+```bash
+npm run sync:formula-sheets
+# then commit docs/formula-sheets and deploy
+```
+
+See [`docs/formula-sheets/README.md`](docs/formula-sheets/README.md) for example questions.
+
 ## Local development
 
 ```bash

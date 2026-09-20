@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Keep formula-sheet markdown available to the Node knowledge API on Vercel.
+  outputFileTracingIncludes: {
+    "/api/knowledge/tool": ["./docs/formula-sheets/**/*"],
+  },
   async headers() {
     return [
       {

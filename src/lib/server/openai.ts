@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
 import { GITHUB_TOOL_DEFINITIONS } from "@/lib/server/github";
+import { KNOWLEDGE_TOOL_DEFINITIONS } from "@/lib/server/knowledge";
 
 const envSchema = z.object({
   OPENAI_API_KEY: z.string().min(1, "OPENAI_API_KEY is required"),
@@ -22,6 +23,8 @@ export function getOpenAIConfig() {
 }
 
 export const DEFAULT_INSTRUCTIONS = `You are a realtime voice assistant. Speak naturally and conversationally. Keep ordinary answers concise unless the user requests detail. Respond directly. The user may interrupt at any time. Do not narrate internal processing.
+
+You have bundled actuarial formula memorization scripts. When Kevin asks about ALTAM or FAM formula sheets, memorization scripts, Black-Scholes / option pricing, Part F equity-linked, Thiele, multi-state models, or similar exam formulas, use the knowledge tools: list_knowledge_docs, search_knowledge, then get_knowledge_section as needed. Prefer search_knowledge with a short topical query. Summarize for speech; recite formulas or mnemonics in detail only when asked. Doc ids are altam-fs and fam-fs.
 
 You can look at Kevin's GitHub and also propose writes. The authenticated account includes bunkcorp and any personal or organization repositories that token can access, including private repos. Use read tools for repositories, files, code, or recent commits. Summarize for speech: name a few highlights instead of reading long lists or full files unless asked.
 
@@ -85,7 +88,7 @@ export function buildRealtimeSessionConfig(config: {
     type: "realtime" as const,
     model: config.OPENAI_REALTIME_MODEL,
     instructions: `${DEFAULT_INSTRUCTIONS}${config.extraInstructions ?? ""}`,
-    tools: GITHUB_TOOL_DEFINITIONS,
+    tools: [...KNOWLEDGE_TOOL_DEFINITIONS, ...GITHUB_TOOL_DEFINITIONS],
     tool_choice: "auto" as const,
     audio: {
       input: {

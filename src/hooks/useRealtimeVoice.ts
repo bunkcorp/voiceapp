@@ -15,6 +15,7 @@ import {
 import { useChatStore } from "@/stores/chatStore";
 import type { Message } from "@/types/voice";
 import { isGitHubToolName } from "@/lib/realtime/githubTools";
+import { isKnowledgeToolName } from "@/lib/realtime/knowledgeTools";
 import type { VoiceSessionState } from "@/types/voice";
 import type {
   RealtimeEvent,
@@ -216,9 +217,18 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
           }
         }
 
-        if (!isGitHubToolName(event.name)) {
-          output = JSON.stringify({ error: `Unknown tool: ${event.name}` });
-        } else {
+        if (isKnowledgeToolName(event.name)) {
+          const response = await fetch("/api/knowledge/tool", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ name: event.name, arguments: args }),
+          });
+          const data = await response.json().catch(() => ({
+            error: "Knowledge tool request failed",
+          }));
+          output = JSON.stringify(data);
+        } else if (isGitHubToolName(event.name)) {
           const response = await fetch("/api/github/tool", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -229,6 +239,8 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
             error: "GitHub tool request failed",
           }));
           output = JSON.stringify(data);
+        } else {
+          output = JSON.stringify({ error: `Unknown tool: ${event.name}` });
         }
       } catch (error) {
         output = JSON.stringify({
