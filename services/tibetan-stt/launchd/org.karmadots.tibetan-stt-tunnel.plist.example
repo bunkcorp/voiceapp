@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Example only. Prefer: services/tibetan-stt/scripts/install-launchagents.sh -->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>org.karmadots.tibetan-stt-tunnel</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>/Users/kevinwoods/tibetan-stt/scripts/run-tunnel.sh</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>/Users/kevinwoods/tibetan-stt</string>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>ThrottleInterval</key>
+	<integer>5</integer>
+	<key>StandardOutPath</key>
+	<string>/Users/kevinwoods/Library/Logs/tibetan-stt/tunnel-stdout.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/kevinwoods/Library/Logs/tibetan-stt/tunnel-stderr.log</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+		<key>HOME</key>
+		<string>/Users/kevinwoods</string>
+	</dict>
+</dict>
+</plist>

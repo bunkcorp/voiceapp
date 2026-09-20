@@ -86,8 +86,8 @@ cd services/tibetan-stt
 
 UI selector **Tibetan** → browser records → `POST /api/stt/tibetan` → your local `/transcribe`.
 
-**Local app:** set `TIBETAN_STT_URL=http://127.0.0.1:8080` in `.env.local`.  
-**Vercel → your Mac:** only via a secure tunnel (Cloudflare Tunnel / Tailscale) with an API key — Vercel cannot reach localhost. Or run Next locally against local STT.
+**Local app:** set `TIBETAN_STT_URL=http://127.0.0.1:8088` in `.env.local` (and matching API key if set).  
+**Vercel → your Mac:** Cloudflare Tunnel at `https://tibetan-stt.karmadots.org` (API key required). See [`services/tibetan-stt/README.md`](services/tibetan-stt/README.md) — `./scripts/install-launchagents.sh` + `./scripts/set-vercel-tibetan-stt-env.sh`.
 
 See [`services/tibetan-stt/README.md`](services/tibetan-stt/README.md) for Docker, model options, and security notes.
 

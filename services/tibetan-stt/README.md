@@ -80,25 +80,48 @@ SELF_HOSTED_STT_API_KEY=   # only if STT_API_KEY is set on the service
 npm run dev
 ```
 
-### Production Vercel → your Mac (only if you expose it securely)
+### Production Vercel → your Mac (Cloudflare Tunnel)
 
-Vercel cannot see `localhost`. Options:
+Vercel cannot see `localhost`. Use the dedicated **tibetan-stt** Cloudflare Tunnel
+(hostname `tibetan-stt.karmadots.org` → `http://127.0.0.1:8088`). Port **8088** avoids
+colliding with `auth.karmadots.org` → `:8080` on the shared `karmadots` tunnel.
 
-1. **Cloudflare Tunnel / Tailscale Funnel** to your always-on Mac
-2. LAN URL only if the Next app also runs on your LAN (not public Vercel)
-
-```bash
-# On Mac
-./run.sh
-npx cloudflared tunnel --url http://127.0.0.1:8080
-```
-
-On Vercel:
+One-time setup (already done on Kevin’s Mac if tunnel exists):
 
 ```bash
-SELF_HOSTED_STT_URL=https://….trycloudflare.com
-SELF_HOSTED_STT_API_KEY=change-me   # strongly recommended when public
+# Account cert must exist (~/.cloudflared/cert.pem from cloudflared tunnel login)
+cloudflared tunnel create tibetan-stt
+cloudflared tunnel route dns tibetan-stt tibetan-stt.karmadots.org
+# Copy cloudflared/config.example.yml → ~/.cloudflared/tibetan-stt.yml and fill UUID
+openssl rand -hex 32 > ~/.cloudflared/tibetan-stt-api-key.txt
+chmod 600 ~/.cloudflared/tibetan-stt-api-key.txt
 ```
+
+Keep STT + tunnel running (LaunchAgents):
+
+```bash
+# Installer rsyncs to ~/tibetan-stt (required: macOS blocks LaunchAgents on Desktop)
+./scripts/install-launchagents.sh
+# Logs: ~/Library/Logs/tibetan-stt/
+# Manual (from repo, for debugging):
+PORT=8088 ./scripts/run-stt.sh
+./scripts/run-tunnel.sh
+```
+
+Re-run `install-launchagents.sh` after pulling STT code changes so `~/tibetan-stt` stays in sync.
+
+Push env to Vercel (uses the key file; never commit it):
+
+```bash
+# from repo root
+./scripts/set-vercel-tibetan-stt-env.sh
+npx vercel --prod   # pick up new envs
+```
+
+| Variable | Value |
+| --- | --- |
+| `TIBETAN_STT_URL` | `https://tibetan-stt.karmadots.org` |
+| `TIBETAN_STT_API_KEY` | same as service `STT_API_KEY` |
 
 Do **not** expose an unauthenticated STT port to the open internet.
 

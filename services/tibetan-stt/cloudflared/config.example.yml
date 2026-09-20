@@ -1,0 +1,20 @@
+# Example Cloudflare Tunnel config for self-hosted Tibetan STT.
+# Copy to ~/.cloudflared/tibetan-stt.yml (keep credentials out of git).
+#
+# Setup:
+#   cloudflared tunnel create tibetan-stt
+#   cloudflared tunnel route dns tibetan-stt tibetan-stt.karmadots.org
+#   # write credentials path below, then:
+#   cloudflared tunnel --config ~/.cloudflared/tibetan-stt.yml run
+#
+# Local STT listens on 8088 by default so it does not collide with
+# auth.karmadots.org → 127.0.0.1:8080 on the shared karmadots tunnel.
+
+tunnel: <TUNNEL_UUID>
+credentials-file: /Users/kevinwoods/.cloudflared/<TUNNEL_UUID>.json
+protocol: http2
+
+ingress:
+  - hostname: tibetan-stt.karmadots.org
+    service: http://127.0.0.1:8088
+  - service: http_status:404

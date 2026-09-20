@@ -85,14 +85,24 @@ def get_asr_pipeline() -> Any:
     model_id = _env("STT_MODEL", DEFAULT_MODEL)
     device = pick_device()
     dtype = torch.float16 if device not in (-1, "cpu") else torch.float32
-    return pipeline(
-        "automatic-speech-recognition",
-        model=model_id,
-        device=device,
-        torch_dtype=dtype,
-        chunk_length_s=30,
-        stride_length_s=5,
-    )
+    kwargs: dict[str, Any] = {
+        "model": model_id,
+        "device": device,
+        "torch_dtype": dtype,
+        "chunk_length_s": 30,
+        "stride_length_s": 5,
+    }
+    try:
+        return pipeline("automatic-speech-recognition", **kwargs)
+    except OSError:
+        # Fine-tunes like billingsmoore/...-whisper-small ship weights only.
+        fallback = _env("STT_TOKENIZER") or "openai/whisper-small"
+        return pipeline(
+            "automatic-speech-recognition",
+            **kwargs,
+            tokenizer=fallback,
+            feature_extractor=fallback,
+        )
 
 
 def load_audio_mono_16k(raw: bytes, filename: str) -> np.ndarray:
