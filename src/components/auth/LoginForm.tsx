@@ -93,14 +93,22 @@ export function LoginForm({ nextPath }: { nextPath: string }) {
         {pending ? "Signing in…" : "Sign in"}
       </button>
 
+      <Link
+        href="/signup"
+        className="rounded-full border border-gray-300 bg-white px-5 py-3 text-center text-sm font-semibold text-gray-900 transition-colors hover:bg-gray-50 dark:border-white/15 dark:bg-neutral-900 dark:text-white dark:hover:bg-neutral-800"
+      >
+        Create account
+      </Link>
+
       <p className="text-center text-sm text-gray-500 dark:text-gray-400">
-        No account?{" "}
+        Already signed up?{" "}
         <Link
-          href="/signup"
+          href="/change-password"
           className="font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
         >
-          Create one
-        </Link>
+          Change password
+        </Link>{" "}
+        after you sign in.
       </p>
     </form>
   );

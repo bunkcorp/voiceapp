@@ -295,7 +295,7 @@ function VoiceScreenInner() {
               href="/change-password"
               className="rounded-full px-3 py-1.5 text-sm text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-gray-200"
             >
-              Account
+              Change password
             </a>
             <LogoutButton />
           </div>

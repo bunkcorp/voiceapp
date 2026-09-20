@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BrandPill } from "@/components/brand/BrandPill";
 import { LoginForm } from "@/components/auth/LoginForm";
@@ -30,7 +31,14 @@ export default async function LoginPage({
   return (
     <div className="relative flex min-h-screen flex-col bg-gradient-to-b from-gray-50 to-gray-100 dark:from-neutral-950 dark:to-black safe-area-inset">
       <header className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-black/5 px-4 py-4 dark:border-white/10 dark:bg-neutral-950/70">
-        <div />
+        <div className="justify-self-start">
+          <Link
+            href="/signup"
+            className="rounded-full px-3 py-1.5 text-sm font-medium text-green-700 transition-colors hover:bg-green-50 dark:text-green-400 dark:hover:bg-white/10"
+          >
+            Create account
+          </Link>
+        </div>
         <BrandPill
           label="Voice Assistant"
           className="max-w-full justify-self-center"
