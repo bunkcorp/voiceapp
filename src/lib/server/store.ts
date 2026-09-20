@@ -31,7 +31,7 @@ async function storeFetch(path: string, init: RequestInit = {}) {
   return response;
 }
 
-async function storeJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function storeJson<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await storeFetch(path, init);
   const data = (await response.json().catch(() => ({}))) as T & { error?: string };
   if (!response.ok) {

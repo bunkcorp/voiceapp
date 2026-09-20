@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { useVoiceStore } from "@/stores/voiceStore";
 import { useRealtimeVoice } from "@/hooks";
 import { useChatSession } from "@/hooks/useChatSession";
@@ -18,6 +19,8 @@ import { ChatThread } from "@/components/chat/ChatThread";
 import { Composer } from "@/components/chat/Composer";
 
 function VoiceScreenInner() {
+  const searchParams = useSearchParams();
+  const isBuddhaChat = searchParams.get("persona") === "buddachat";
   const {
     messages,
     error,
@@ -214,11 +217,17 @@ function VoiceScreenInner() {
             </button>
           </div>
           <BrandPill
-            label={activeTitle}
+            label={isBuddhaChat ? "BuddhaChat" : activeTitle}
             className="max-w-full justify-self-center"
           />
           <div className="flex items-center gap-1 justify-self-end">
             <ThemeToggle />
+            <a
+              href="/change-password"
+              className="rounded-full px-3 py-1.5 text-sm text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-gray-200"
+            >
+              Account
+            </a>
             <LogoutButton />
           </div>
         </header>

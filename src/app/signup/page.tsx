@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { BrandPill } from "@/components/brand/BrandPill";
-import { LoginForm } from "@/components/auth/LoginForm";
+import { SignupForm } from "@/components/auth/SignupForm";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import {
   SESSION_COOKIE,
@@ -10,11 +10,11 @@ import {
 } from "@/lib/server/auth";
 
 export const metadata = {
-  title: "Sign in · Voice Assistant",
-  description: "Sign in to use the voice assistant",
+  title: "Create account · Voice Assistant",
+  description: "Create an account for the voice assistant",
 };
 
-export default async function LoginPage({
+export default async function SignupPage({
   searchParams,
 }: {
   searchParams: Promise<{ next?: string }>;
@@ -44,15 +44,13 @@ export default async function LoginPage({
         <div className="flex w-full max-w-sm flex-col items-center gap-8">
           <div className="text-center">
             <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
-              Sign in
+              Create account
             </h2>
             <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-              {nextPath.includes("persona=buddachat")
-                ? "Sign in to use BuddhaChat voice in KarmaDots"
-                : "Email or username and password"}
+              Email and password — at least 8 characters
             </p>
           </div>
-          <LoginForm nextPath={nextPath} />
+          <SignupForm nextPath={nextPath} />
         </div>
       </main>
     </div>

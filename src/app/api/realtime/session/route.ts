@@ -3,6 +3,7 @@ import {
   getOpenAIConfig,
   buildHistoryContext,
   buildRealtimeSessionConfig,
+  extraInstructionsForPersona,
 } from "@/lib/server/openai";
 import { SESSION_COOKIE, isValidSessionToken } from "@/lib/server/auth";
 import { getConversation } from "@/lib/server/store";
@@ -80,6 +81,10 @@ export async function POST(request: NextRequest) {
         console.error("[api/realtime/session] history load failed:", error);
       }
     }
+
+    extraInstructions = `${extraInstructionsForPersona(
+      request.nextUrl.searchParams.get("persona")
+    )}${extraInstructions}`;
 
     const sessionConfig = JSON.stringify(
       buildRealtimeSessionConfig({ ...config, extraInstructions })

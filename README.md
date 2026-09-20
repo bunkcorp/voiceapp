@@ -1,36 +1,103 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Voice Assistant (KarmaDots)
 
-## Getting Started
+Next.js App Router app for realtime voice chat at [voice.karmadots.org](https://voice.karmadots.org).
+Chat history lives in Cloudflare D1 + R2/KV via the `voiceapp-store` Worker; the Next app runs on Vercel.
 
-First, run the development server:
+## Auth
+
+Accounts are stored in the same Cloudflare D1 database (`users` table) through the store Worker.
+Passwords are hashed with **bcryptjs** in the Next.js API routes — plaintext is never stored.
+
+| Route | Access |
+| --- | --- |
+| `/login` | Public |
+| `/signup` | Public |
+| `/change-password` | Signed-in only |
+| `/voice` | Signed-in only |
+
+Session cookie: `voice_session` (HMAC-signed payload with user id + email).
+
+### First account (seed)
+
+When the `users` table is empty, the next login/signup attempt automatically seeds an admin from env if both are set:
+
+- `VOICE_USER` — email address
+- `VOICE_PASS` — password (hashed on insert)
+
+Or seed explicitly:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npx tsx --env-file=.env.local scripts/seed-admin.mts
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+After at least one user exists, login uses the database only (hashed passwords).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Create another account
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Open `/signup`, or use “Create one” on the login page.
 
-## Learn More
+### Change password
 
-To learn more about Next.js, take a look at the following resources:
+While signed in, open **Account** in the voice header (or `/change-password`). Enter your current password and a new one (min 8 characters).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Emergency env login (optional)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Set `VOICE_ALLOW_ENV_LOGIN=true` only if you need a break-glass path that still accepts plaintext `VOICE_USER` / `VOICE_PASS` against env. Prefer seeding once and turning this off. Keep `VOICE_SESSION_SECRET` set so you can rotate `VOICE_PASS` without invalidating all sessions.
 
-## Deploy on Vercel
+## Environment variables
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Copy `.env.example` to `.env.local` (never commit secrets).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**Required for auth + chats**
+
+| Variable | Purpose |
+| --- | --- |
+| `VOICE_SESSION_SECRET` | HMAC secret for `voice_session` cookies |
+| `CLOUDFLARE_STORE_URL` | Store Worker base URL (e.g. `https://voice-store.karmadots.org`) |
+| `CLOUDFLARE_STORE_SECRET` | Bearer token matching Worker `STORE_SECRET` |
+
+**Bootstrap / emergency**
+
+| Variable | Purpose |
+| --- | --- |
+| `VOICE_USER` | Admin email for first-run seed |
+| `VOICE_PASS` | Admin password for first-run seed (and optional emergency login) |
+| `VOICE_USER_ALIASES` | Optional comma-separated usernames for env emergency login |
+| `VOICE_ALLOW_ENV_LOGIN` | `true` to allow env plaintext login after users exist |
+
+**OpenAI / GitHub** — see `.env.example`.
+
+## Cloudflare store deploy (users migration)
+
+From `cloudflare/voiceapp-store`:
+
+```bash
+# Apply D1 migration (users table)
+npx wrangler d1 migrations apply voiceapp-chats --remote
+
+# Deploy Worker (also auto-creates users table on first /users hit)
+npx wrangler deploy
+```
+
+Set `STORE_SECRET` as a Worker secret (`wrangler secret put STORE_SECRET`) and match it in Vercel as `CLOUDFLARE_STORE_SECRET`.
+
+## Local development
+
+```bash
+npm install
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+```bash
+npm run lint
+npx tsc --noEmit
+```
+
+## Deploy (Vercel)
+
+1. Deploy/migrate the Cloudflare store Worker (above).
+2. Set Vercel env vars from the table above (Production + Preview as needed).
+3. Deploy the Next.js app (`vercel` or Git integration).
+4. Hit `/login` once with `VOICE_USER` / `VOICE_PASS` set to seed, or run `scripts/seed-admin.mts`, or use `/signup`.

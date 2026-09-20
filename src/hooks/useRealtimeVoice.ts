@@ -563,8 +563,19 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
       logVoiceEvent("sending SDP offer to server");
 
       const conversationId = useChatStore.getState().activeId;
-      const sessionUrl = conversationId
-        ? `/api/realtime/session?c=${encodeURIComponent(conversationId)}`
+      const sessionParams = new URLSearchParams();
+      if (conversationId) {
+        sessionParams.set("c", conversationId);
+      }
+      const persona = new URLSearchParams(window.location.search).get(
+        "persona"
+      );
+      if (persona === "buddachat") {
+        sessionParams.set("persona", "buddachat");
+      }
+      const sessionQuery = sessionParams.toString();
+      const sessionUrl = sessionQuery
+        ? `/api/realtime/session?${sessionQuery}`
         : "/api/realtime/session";
 
       const response = await fetch(sessionUrl, {

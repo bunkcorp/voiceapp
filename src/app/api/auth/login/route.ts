@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   SESSION_COOKIE,
+  authenticateUser,
   createSessionToken,
+  ensureSeedUser,
   sessionCookieOptions,
-  verifyCredentials,
 } from "@/lib/server/auth";
+import { clientIp, rateLimit } from "@/lib/server/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -43,16 +45,38 @@ async function readCredentials(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { identifier, password } = await readCredentials(request);
+    const limited = rateLimit(`login:${clientIp(request)}`, 10, 60_000);
+    if (!limited.ok) {
+      return NextResponse.json(
+        { error: "Too many attempts. Try again shortly." },
+        {
+          status: 429,
+          headers: {
+            ...NO_STORE,
+            "Retry-After": String(limited.retryAfterSeconds),
+          },
+        }
+      );
+    }
 
-    if (!verifyCredentials(identifier, password)) {
+    await ensureSeedUser();
+    const { identifier, password } = await readCredentials(request);
+    if (!identifier.trim() || !password) {
       return invalidCredentials();
     }
 
-    const response = NextResponse.json({ ok: true }, { headers: NO_STORE });
+    const user = await authenticateUser(identifier, password);
+    if (!user) {
+      return invalidCredentials();
+    }
+
+    const response = NextResponse.json(
+      { ok: true, email: user.email },
+      { headers: NO_STORE }
+    );
     response.cookies.set(
       SESSION_COOKIE,
-      createSessionToken(),
+      createSessionToken(user),
       sessionCookieOptions()
     );
     return response;

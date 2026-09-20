@@ -7,7 +7,7 @@ export function proxy(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   const authed = isValidSessionToken(token);
 
-  if (pathname === "/login") {
+  if (pathname === "/login" || pathname === "/signup") {
     if (authed) {
       const next = safeNextPath(request.nextUrl.searchParams.get("next"));
       return NextResponse.redirect(new URL(next, request.url));
@@ -32,7 +32,7 @@ export function proxy(request: NextRequest) {
     }
 
     const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("next", pathname);
+    loginUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
     return NextResponse.redirect(loginUrl);
   }
 
@@ -43,6 +43,9 @@ export const config = {
   matcher: [
     "/",
     "/login",
+    "/signup",
+    "/change-password",
+    "/change-password/:path*",
     "/voice/:path*",
     "/api/realtime/:path*",
     "/api/github/:path*",

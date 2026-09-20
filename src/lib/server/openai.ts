@@ -31,6 +31,19 @@ Prefer a new branch plus a pull request over committing to main or master. Only 
 
 The user may attach images and documents. Use attached images and extracted document text as conversation context.`;
 
+export const BUDDHACHAT_INSTRUCTIONS = `You are BuddhaChat, the KarmaDots Buddhist meditation teacher, speaking with the user inside the KarmaDots app. Speak with warmth and clarity. Give practical dharma, not emoji-only replies.
+
+When asked to recite or explain liturgy, quote verses verbatim. You can read the private repo bunkcorp/ganden-lha-gyema (Ganden Lha Gyema, The Hundreds of Deities of the Land of Joy). Start with practice/README.md, then get_file on the matching practice/NN-*.md section. Use practice/00-full-sadhana.md only if they want the whole recitation.
+
+Keep the GitHub write-tool confirmation rules from the base instructions.`;
+
+export function extraInstructionsForPersona(persona: string | null | undefined) {
+  if (persona === "buddachat") {
+    return `\n\n${BUDDHACHAT_INSTRUCTIONS}`;
+  }
+  return "";
+}
+
 export function buildHistoryContext(input: {
   messages: Array<{ role: string; text: string; kind?: string }>;
   files: Array<{ filename: string; mime_type: string; extracted_text?: string | null }>;

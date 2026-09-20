@@ -11,6 +11,21 @@ function pathParts(url) {
   return url.pathname.replace(/\/+$/, "").split("/").filter(Boolean);
 }
 
+async function ensureUsersTable(env) {
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+      password_hash TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`
+  ).run();
+  await env.DB.prepare(
+    "CREATE INDEX IF NOT EXISTS idx_users_email ON users (email)"
+  ).run();
+}
+
 export default {
   async fetch(request, env) {
     const auth = request.headers.get("Authorization") || "";
@@ -22,6 +37,134 @@ export default {
     const parts = pathParts(url);
 
     try {
+      if (parts[0] === "users") {
+        await ensureUsersTable(env);
+
+        if (request.method === "GET" && parts.length === 1) {
+          const email = (url.searchParams.get("email") || "").trim().toLowerCase();
+          if (email) {
+            const user = await env.DB.prepare(
+              "SELECT id, email, password_hash, created_at, updated_at FROM users WHERE email = ? COLLATE NOCASE"
+            )
+              .bind(email)
+              .first();
+            if (!user) {
+              return json({ error: "Not found" }, 404);
+            }
+            return json(user);
+          }
+
+          const { results } = await env.DB.prepare(
+            "SELECT id, email, created_at, updated_at FROM users ORDER BY created_at ASC"
+          ).all();
+          return json({ users: results || [] });
+        }
+
+        if (
+          request.method === "GET" &&
+          parts.length === 2 &&
+          parts[1] === "count"
+        ) {
+          const row = await env.DB.prepare(
+            "SELECT COUNT(*) AS count FROM users"
+          ).first();
+          return json({ count: Number(row?.count || 0) });
+        }
+
+        if (request.method === "GET" && parts.length === 2) {
+          const user = await env.DB.prepare(
+            "SELECT id, email, password_hash, created_at, updated_at FROM users WHERE id = ?"
+          )
+            .bind(parts[1])
+            .first();
+          if (!user) {
+            return json({ error: "Not found" }, 404);
+          }
+          return json(user);
+        }
+
+        if (request.method === "POST" && parts.length === 1) {
+          const body = await request.json().catch(() => ({}));
+          const email =
+            typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+          const passwordHash =
+            typeof body.password_hash === "string" ? body.password_hash : "";
+          if (!email || !passwordHash) {
+            return json({ error: "email and password_hash are required" }, 400);
+          }
+
+          const existing = await env.DB.prepare(
+            "SELECT id FROM users WHERE email = ? COLLATE NOCASE"
+          )
+            .bind(email)
+            .first();
+          if (existing) {
+            return json({ error: "Email already registered" }, 409);
+          }
+
+          const id =
+            typeof body.id === "string" && body.id
+              ? body.id
+              : crypto.randomUUID();
+          const now = Date.now();
+          try {
+            await env.DB.prepare(
+              `INSERT INTO users (id, email, password_hash, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?)`
+            )
+              .bind(id, email, passwordHash, now, now)
+              .run();
+          } catch (error) {
+            const message =
+              error instanceof Error ? error.message : "Insert failed";
+            if (/UNIQUE/i.test(message)) {
+              return json({ error: "Email already registered" }, 409);
+            }
+            throw error;
+          }
+
+          return json(
+            { id, email, created_at: now, updated_at: now },
+            201
+          );
+        }
+
+        if (request.method === "PATCH" && parts.length === 2) {
+          const id = parts[1];
+          const existing = await env.DB.prepare(
+            "SELECT id, email, created_at, updated_at FROM users WHERE id = ?"
+          )
+            .bind(id)
+            .first();
+          if (!existing) {
+            return json({ error: "Not found" }, 404);
+          }
+
+          const body = await request.json().catch(() => ({}));
+          const passwordHash =
+            typeof body.password_hash === "string" ? body.password_hash : "";
+          if (!passwordHash) {
+            return json({ error: "password_hash is required" }, 400);
+          }
+
+          const now = Date.now();
+          await env.DB.prepare(
+            "UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?"
+          )
+            .bind(passwordHash, now, id)
+            .run();
+
+          return json({
+            id: existing.id,
+            email: existing.email,
+            created_at: existing.created_at,
+            updated_at: now,
+          });
+        }
+
+        return json({ error: "Not found" }, 404);
+      }
+
       if (
         request.method === "GET" &&
         parts.length === 1 &&

@@ -10,6 +10,7 @@ routes = [
 binding = "DB"
 database_name = "voiceapp-chats"
 database_id = "03336b34-f3ca-4cdb-ad11-55e8eca335cf"
+migrations_dir = "migrations"
 
 [[kv_namespaces]]
 binding = "UPLOADS"
