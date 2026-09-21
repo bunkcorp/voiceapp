@@ -9,7 +9,8 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "seed:admin": "tsx --env-file=.env.local scripts/seed-admin.mts",
-    "sync:formula-sheets": "tsx scripts/sync-formula-sheets.mts"
+    "sync:formula-sheets": "tsx scripts/sync-formula-sheets.mts",
+    "sync:problem-sheets": "tsx scripts/sync-problem-sheets.mts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

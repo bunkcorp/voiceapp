@@ -22,6 +22,11 @@ import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { ChatThread } from "@/components/chat/ChatThread";
 import { Composer } from "@/components/chat/Composer";
 import { FORMULA_SHEETS_VOICE_CUE } from "@/lib/formulaSheetsCue";
+import {
+  PROBLEM_SHEETS,
+  problemSheetVoiceCue,
+  type ProblemSheet,
+} from "@/lib/problemSheetsCue";
 
 function VoiceScreenInner() {
   const searchParams = useSearchParams();
@@ -116,6 +121,11 @@ function VoiceScreenInner() {
 
   const [elapsedTime, setElapsedTime] = useState(0);
   const [uploading, setUploading] = useState(false);
+  const [selectedProblem, setSelectedProblem] = useState<ProblemSheet | null>(
+    null
+  );
+  const [problemMenuOpen, setProblemMenuOpen] = useState(false);
+  const problemMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!sessionStartTime) {
@@ -203,21 +213,66 @@ function VoiceScreenInner() {
     "reconnecting",
   ].includes(state);
 
-  const handleFormulaSheets = useCallback(() => {
-    const canPromptLive = [
-      "listening",
-      "user_speaking",
-      "assistant_processing",
-      "assistant_speaking",
-    ].includes(state);
+  const canPromptLive = [
+    "listening",
+    "user_speaking",
+    "assistant_processing",
+    "assistant_speaking",
+  ].includes(state);
 
-    if (canPromptLive) {
-      sendText(FORMULA_SHEETS_VOICE_CUE);
+  const sendOrConnectPrompt = useCallback(
+    (prompt: string) => {
+      if (canPromptLive) {
+        sendText(prompt);
+        return;
+      }
+      void connect({ prompt });
+    },
+    [canPromptLive, connect, sendText]
+  );
+
+  const handleFormulaSheets = useCallback(() => {
+    setProblemMenuOpen(false);
+    sendOrConnectPrompt(FORMULA_SHEETS_VOICE_CUE);
+  }, [sendOrConnectPrompt]);
+
+  const handleSelectProblem = useCallback(
+    (problem: ProblemSheet) => {
+      setSelectedProblem(problem);
+      setProblemMenuOpen(false);
+      sendOrConnectPrompt(problemSheetVoiceCue(problem));
+    },
+    [sendOrConnectPrompt]
+  );
+
+  useEffect(() => {
+    if (!problemMenuOpen) {
       return;
     }
+    const onPointerDown = (event: MouseEvent) => {
+      if (
+        problemMenuRef.current &&
+        !problemMenuRef.current.contains(event.target as Node)
+      ) {
+        setProblemMenuOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setProblemMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [problemMenuOpen]);
 
-    void connect({ prompt: FORMULA_SHEETS_VOICE_CUE });
-  }, [connect, sendText, state]);
+  const problemChipLabel = selectedProblem
+    ? `Problem sheets · ${selectedProblem.label}`
+    : "Problem sheets";
 
   return (
     <div className="relative flex h-dvh max-h-dvh overflow-hidden bg-gradient-to-b from-gray-50 to-gray-100 dark:from-neutral-950 dark:to-black safe-area-inset">
@@ -314,6 +369,47 @@ function VoiceScreenInner() {
             >
               Formula sheets
             </button>
+            <div className="relative shrink-0" ref={problemMenuRef}>
+              <button
+                type="button"
+                aria-haspopup="listbox"
+                aria-expanded={problemMenuOpen}
+                onClick={() => setProblemMenuOpen((open) => !open)}
+                className="inline-flex max-w-[11rem] items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-black/10 transition-colors hover:bg-white dark:bg-neutral-800 dark:text-neutral-100 dark:ring-white/15 dark:hover:bg-neutral-700 sm:max-w-none"
+              >
+                <span className="truncate">{problemChipLabel}</span>
+                <span aria-hidden className="text-xs text-gray-500 dark:text-gray-400">
+                  ▾
+                </span>
+              </button>
+              {problemMenuOpen ? (
+                <div
+                  role="listbox"
+                  aria-label="Problem sheets"
+                  className="absolute left-1/2 z-50 mt-2 max-h-72 w-40 -translate-x-1/2 overflow-y-auto rounded-xl bg-white py-1 shadow-lg ring-1 ring-black/10 dark:bg-neutral-900 dark:ring-white/15"
+                >
+                  {PROBLEM_SHEETS.map((problem) => {
+                    const selected = selectedProblem?.id === problem.id;
+                    return (
+                      <button
+                        key={problem.id}
+                        type="button"
+                        role="option"
+                        aria-selected={selected}
+                        onClick={() => handleSelectProblem(problem)}
+                        className={`block w-full px-3 py-1.5 text-left text-sm transition-colors hover:bg-gray-100 dark:hover:bg-white/10 ${
+                          selected
+                            ? "font-semibold text-gray-900 dark:text-neutral-100"
+                            : "text-gray-700 dark:text-gray-300"
+                        }`}
+                      >
+                        {problem.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
           </div>
           <div className="flex items-center gap-1 justify-self-end">
             <ThemeToggle />

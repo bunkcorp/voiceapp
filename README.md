@@ -129,6 +129,19 @@ npm run sync:formula-sheets
 
 See [`docs/formula-sheets/README.md`](docs/formula-sheets/README.md) for example questions.
 
+## Problem sheet knowledge (ALTAM sample Q1–Q61)
+
+Bundled tutor-style solution scripts live under `docs/problem-sheets/`. Use the **Problem sheets** chip on voice.karmadots.org to pick a question; the assistant scopes knowledge tools to that `qNN` doc.
+
+Refresh after updating scripts in soa-altam-videos:
+
+```bash
+npm run sync:problem-sheets
+# then commit docs/problem-sheets and deploy
+```
+
+See [`docs/problem-sheets/README.md`](docs/problem-sheets/README.md) for details.
+
 ## Local development
 
 ```bash

@@ -10,10 +10,13 @@ const SECTION_CHAR_LIMIT = 12_000;
 const SEARCH_SNIPPET_LIMIT = 4_000;
 const MAX_SEARCH_RESULTS = 6;
 
+type KnowledgeKind = "formula-sheet" | "problem-sheet";
+
 type KnowledgeDocMeta = {
   id: string;
   title: string;
   exam: "ALTAM" | "FAM";
+  kind: KnowledgeKind;
   filename: string;
   description: string;
   topics: string[];
@@ -31,7 +34,7 @@ type LoadedDoc = KnowledgeDocMeta & {
   sections: KnowledgeSection[];
 };
 
-const DOC_META: KnowledgeDocMeta[] = [
+const FORMULA_DOC_META: Omit<KnowledgeDocMeta, "kind">[] = [
   {
     id: "altam-fs",
     title: "ALTAM Formula Sheet Memorization Script",
@@ -81,8 +84,12 @@ const DOC_META: KnowledgeDocMeta[] = [
 
 let cache: LoadedDoc[] | null = null;
 
-function docsRoot() {
+function formulaSheetsRoot() {
   return path.join(process.cwd(), "docs", "formula-sheets");
+}
+
+function problemSheetsRoot() {
+  return path.join(process.cwd(), "docs", "problem-sheets");
 }
 
 function slugify(heading: string) {
@@ -138,16 +145,23 @@ function parseSections(docId: string, markdown: string): KnowledgeSection[] {
   return sections;
 }
 
-async function loadDocs(): Promise<LoadedDoc[]> {
-  if (cache) {
-    return cache;
+function firstHeading(markdown: string): string | null {
+  const match = /^#\s+(.+)$/m.exec(markdown);
+  return match?.[1]?.trim() ?? null;
+}
+
+async function loadFormulaDocs(): Promise<LoadedDoc[]> {
+  const root = formulaSheetsRoot();
+  let available: Set<string>;
+  try {
+    available = new Set(await readdir(root));
+  } catch {
+    console.warn(`[knowledge] missing formula-sheets dir ${root}`);
+    return [];
   }
 
-  const root = docsRoot();
-  const available = new Set(await readdir(root));
   const loaded: LoadedDoc[] = [];
-
-  for (const meta of DOC_META) {
+  for (const meta of FORMULA_DOC_META) {
     if (!available.has(meta.filename)) {
       console.warn(`[knowledge] missing ${meta.filename} in ${root}`);
       continue;
@@ -155,12 +169,73 @@ async function loadDocs(): Promise<LoadedDoc[]> {
     const markdown = await readFile(path.join(root, meta.filename), "utf8");
     loaded.push({
       ...meta,
+      kind: "formula-sheet",
       sections: parseSections(meta.id, markdown),
     });
   }
-
-  cache = loaded;
   return loaded;
+}
+
+const PROBLEM_SCRIPT_RE = /^Q(\d{2})_solution_script\.md$/i;
+
+async function loadProblemDocs(): Promise<LoadedDoc[]> {
+  const root = problemSheetsRoot();
+  let entries: string[];
+  try {
+    entries = await readdir(root);
+  } catch {
+    console.warn(`[knowledge] missing problem-sheets dir ${root}`);
+    return [];
+  }
+
+  const files = entries
+    .filter((name) => PROBLEM_SCRIPT_RE.test(name))
+    .sort((a, b) => {
+      const na = Number(PROBLEM_SCRIPT_RE.exec(a)?.[1] ?? 0);
+      const nb = Number(PROBLEM_SCRIPT_RE.exec(b)?.[1] ?? 0);
+      return na - nb;
+    });
+
+  const loaded: LoadedDoc[] = [];
+  for (const filename of files) {
+    const match = PROBLEM_SCRIPT_RE.exec(filename);
+    if (!match) continue;
+    const padded = match[1];
+    const question = Number(padded);
+    const id = `q${padded}`;
+    const markdown = await readFile(path.join(root, filename), "utf8");
+    const title =
+      firstHeading(markdown) ?? `ALTAM Sample Question ${question} — Solution Script`;
+    loaded.push({
+      id,
+      title,
+      exam: "ALTAM",
+      kind: "problem-sheet",
+      filename,
+      description: `Tutor-style solution script for ALTAM sample question ${question} (${id}).`,
+      topics: [
+        "ALTAM",
+        "problem sheet",
+        "solution script",
+        `Q${question}`,
+        `Q${padded}`,
+        id,
+        `question ${question}`,
+        "sample question",
+      ],
+      sections: parseSections(id, markdown),
+    });
+  }
+  return loaded;
+}
+
+async function loadDocs(): Promise<LoadedDoc[]> {
+  if (cache) {
+    return cache;
+  }
+
+  cache = [...(await loadFormulaDocs()), ...(await loadProblemDocs())];
+  return cache;
 }
 
 function truncate(text: string, limit: number) {
@@ -183,6 +258,29 @@ function tokenize(query: string) {
     .filter((token) => token.length > 1);
 }
 
+function resolveDocId(docs: LoadedDoc[], docId: string): LoadedDoc[] {
+  const lowered = docId.toLowerCase();
+  const exact = docs.filter(
+    (doc) =>
+      doc.id === lowered ||
+      doc.id === docId ||
+      doc.exam.toLowerCase() === lowered
+  );
+  if (exact.length > 0) {
+    return exact;
+  }
+
+  // Accept Q55 / q55 / question 55 style ids
+  const questionMatch = /^(?:q|question\s*)?0*(\d{1,2})$/i.exec(docId.trim());
+  if (questionMatch) {
+    const padded = questionMatch[1].padStart(2, "0");
+    const id = `q${padded}`;
+    return docs.filter((doc) => doc.id === id);
+  }
+
+  return [];
+}
+
 function scoreSection(section: KnowledgeSection, doc: LoadedDoc, tokens: string[]) {
   const heading = normalizeSearchText(section.heading);
   const body = normalizeSearchText(section.text);
@@ -199,8 +297,32 @@ function scoreSection(section: KnowledgeSection, doc: LoadedDoc, tokens: string[
     if (doc.id.includes(token)) score += 4;
   }
 
-  if (tokens.some((t) => t === "formula" || t === "sheet") && /formula|sheet/i.test(doc.title)) {
+  if (
+    tokens.some((t) => t === "formula" || t === "sheet") &&
+    doc.kind === "formula-sheet"
+  ) {
     score += 2;
+  }
+
+  if (
+    tokens.some(
+      (t) =>
+        t === "problem" ||
+        t === "solution" ||
+        t === "sample" ||
+        t.startsWith("q")
+    ) &&
+    doc.kind === "problem-sheet"
+  ) {
+    score += 2;
+  }
+
+  // Strong boost when query mentions this problem number
+  const qTokens = tokens.filter((t) => /^q?\d{1,2}$/.test(t));
+  for (const token of qTokens) {
+    const num = token.replace(/^q/, "").replace(/^0+/, "") || "0";
+    const padded = num.padStart(2, "0");
+    if (doc.id === `q${padded}`) score += 20;
   }
 
   return score;
@@ -213,13 +335,15 @@ async function listKnowledgeDocs() {
       id: doc.id,
       title: doc.title,
       exam: doc.exam,
+      kind: doc.kind,
       filename: doc.filename,
       description: doc.description,
       topics: doc.topics,
       section_count: doc.sections.length,
+      // Problem sheets can be many; keep section outlines short.
       sections: doc.sections
         .filter((section) => section.level <= 2)
-        .slice(0, 40)
+        .slice(0, doc.kind === "problem-sheet" ? 12 : 40)
         .map((section) => ({
           id: section.id,
           heading: section.heading,
@@ -242,13 +366,7 @@ async function searchKnowledge(args: z.infer<typeof searchArgs>) {
     return { results: [], note: "Query had no searchable tokens." };
   }
 
-  const docId = args.doc_id;
-  const scoped = docId
-    ? docs.filter(
-        (doc) =>
-          doc.id === docId || doc.exam.toLowerCase() === docId.toLowerCase()
-      )
-    : docs;
+  const scoped = args.doc_id ? resolveDocId(docs, args.doc_id) : docs;
 
   if (scoped.length === 0) {
     return {
@@ -275,6 +393,7 @@ async function searchKnowledge(args: z.infer<typeof searchArgs>) {
       return {
         doc_id: doc.id,
         exam: doc.exam,
+        kind: doc.kind,
         section_id: section.id,
         heading: section.heading,
         score,
@@ -302,13 +421,12 @@ const getSectionArgs = z.object({
 
 async function getKnowledgeSection(args: z.infer<typeof getSectionArgs>) {
   const docs = await loadDocs();
-  const doc =
-    docs.find((item) => item.id === args.doc_id) ||
-    docs.find((item) => item.exam.toLowerCase() === args.doc_id.toLowerCase());
+  const matches = resolveDocId(docs, args.doc_id);
+  const doc = matches[0];
 
   if (!doc) {
     return {
-      error: `Unknown doc_id ${args.doc_id}. Use list_knowledge_docs for ids altam-fs or fam-fs.`,
+      error: `Unknown doc_id ${args.doc_id}. Use list_knowledge_docs for ids like altam-fs, fam-fs, or q01–q61.`,
     };
   }
 
@@ -326,6 +444,11 @@ async function getKnowledgeSection(args: z.infer<typeof getSectionArgs>) {
       .sort((a, b) => b.score - a.score)[0]?.item;
   }
 
+  // Default: first section (usually title / restatement) so the model can start a walkthrough.
+  if (!section && !args.section_id && !args.heading_query) {
+    section = doc.sections[0];
+  }
+
   if (!section) {
     return {
       error: "Section not found. Pass section_id from search_knowledge or a heading_query.",
@@ -341,6 +464,7 @@ async function getKnowledgeSection(args: z.infer<typeof getSectionArgs>) {
   return {
     doc_id: doc.id,
     exam: doc.exam,
+    kind: doc.kind,
     section_id: section.id,
     heading: section.heading,
     truncated: body.truncated,
@@ -353,7 +477,7 @@ export const KNOWLEDGE_TOOL_DEFINITIONS = [
     type: "function" as const,
     name: "list_knowledge_docs",
     description:
-      "List bundled actuarial formula memorization scripts (ALTAM and FAM) and their top-level sections. Use when the user asks what formula sheets or memorization scripts are available.",
+      "List bundled actuarial knowledge docs: ALTAM/FAM formula memorization scripts and ALTAM sample-question solution scripts (q01–q61). Use when the user asks what formula sheets or problem sheets are available.",
     parameters: {
       type: "object",
       properties: {},
@@ -364,17 +488,19 @@ export const KNOWLEDGE_TOOL_DEFINITIONS = [
     type: "function" as const,
     name: "search_knowledge",
     description:
-      "Search bundled ALTAM/FAM formula memorization scripts by topic or formula name. Prefer this for queries like Black-Scholes put, Part F equity-linked, Thiele, put-call parity, FAM option pricing.",
+      "Search bundled formula memorization scripts and ALTAM problem solution scripts by topic, formula name, or question (e.g. Q55, Black-Scholes put, Part F equity-linked, Thiele). When a problem is selected, pass doc_id like q55.",
     parameters: {
       type: "object",
       properties: {
         query: {
           type: "string",
-          description: "Search text, e.g. Black-Scholes put or Part F equity-linked GMDB.",
+          description:
+            "Search text, e.g. Black-Scholes put, Part F equity-linked GMDB, or Q30 NPV.",
         },
         doc_id: {
           type: "string",
-          description: "Optional doc id: altam-fs or fam-fs (or ALTAM / FAM).",
+          description:
+            "Optional doc id: altam-fs, fam-fs, q01–q61 (or ALTAM / FAM / Q55).",
         },
         limit: {
           type: "integer",
@@ -389,13 +515,13 @@ export const KNOWLEDGE_TOOL_DEFINITIONS = [
     type: "function" as const,
     name: "get_knowledge_section",
     description:
-      "Read one section from a bundled formula memorization script. Use section_id from search_knowledge or list_knowledge_docs, or heading_query to resolve a heading.",
+      "Read one section from a bundled formula or problem solution script. Use section_id from search_knowledge or list_knowledge_docs, or heading_query to resolve a heading. For problem sheets, doc_id is q01–q61.",
     parameters: {
       type: "object",
       properties: {
         doc_id: {
           type: "string",
-          description: "altam-fs or fam-fs (or ALTAM / FAM).",
+          description: "altam-fs, fam-fs, or q01–q61 (or ALTAM / FAM / Q55).",
         },
         section_id: {
           type: "string",
