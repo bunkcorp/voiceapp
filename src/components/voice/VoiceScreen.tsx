@@ -21,6 +21,7 @@ import { BrandPill } from "@/components/brand/BrandPill";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { ChatThread } from "@/components/chat/ChatThread";
 import { Composer } from "@/components/chat/Composer";
+import { FORMULA_SHEETS_VOICE_CUE } from "@/lib/formulaSheetsCue";
 
 function VoiceScreenInner() {
   const searchParams = useSearchParams();
@@ -202,6 +203,22 @@ function VoiceScreenInner() {
     "reconnecting",
   ].includes(state);
 
+  const handleFormulaSheets = useCallback(() => {
+    const canPromptLive = [
+      "listening",
+      "user_speaking",
+      "assistant_processing",
+      "assistant_speaking",
+    ].includes(state);
+
+    if (canPromptLive) {
+      sendText(FORMULA_SHEETS_VOICE_CUE);
+      return;
+    }
+
+    void connect({ prompt: FORMULA_SHEETS_VOICE_CUE });
+  }, [connect, sendText, state]);
+
   return (
     <div className="relative flex h-dvh max-h-dvh overflow-hidden bg-gradient-to-b from-gray-50 to-gray-100 dark:from-neutral-950 dark:to-black safe-area-inset">
       <aside className="hidden h-full min-h-0 w-72 shrink-0 border-r border-gray-200/80 bg-gray-100/80 dark:border-white/10 dark:bg-neutral-950 md:flex md:flex-col">
@@ -285,10 +302,19 @@ function VoiceScreenInner() {
               Chats
             </button>
           </div>
-          <BrandPill
-            label={isBuddhaChat ? "BuddhaChat" : activeTitle}
-            className="max-w-full justify-self-center"
-          />
+          <div className="flex min-w-0 max-w-full items-center justify-center gap-2 justify-self-center">
+            <BrandPill
+              label={isBuddhaChat ? "BuddhaChat" : activeTitle}
+              className="min-w-0 max-w-[min(100%,14rem)] sm:max-w-[min(100%,20rem)]"
+            />
+            <button
+              type="button"
+              onClick={handleFormulaSheets}
+              className="inline-flex shrink-0 items-center rounded-full bg-white/90 px-2.5 py-1 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-black/10 transition-colors hover:bg-white dark:bg-neutral-800 dark:text-neutral-100 dark:ring-white/15 dark:hover:bg-neutral-700"
+            >
+              Formula sheets
+            </button>
+          </div>
           <div className="flex items-center gap-1 justify-self-end">
             <ThemeToggle />
             <a

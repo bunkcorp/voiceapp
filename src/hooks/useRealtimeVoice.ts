@@ -29,9 +29,14 @@ import type {
   ErrorEvent,
 } from "@/lib/realtime/types";
 
+export interface ConnectOptions {
+  /** After the data channel opens, send this as a user message and request a spoken reply. */
+  prompt?: string;
+}
+
 interface UseRealtimeVoiceReturn {
   state: VoiceSessionState;
-  connect: () => Promise<void>;
+  connect: (options?: ConnectOptions) => Promise<void>;
   disconnect: () => void;
   mute: () => void;
   unmute: () => void;
@@ -69,6 +74,7 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
   const isConnectingRef = useRef<boolean>(false);
   const pendingFunctionCallsRef = useRef(0);
   const awaitingFunctionResultsRef = useRef(false);
+  const pendingPromptRef = useRef<string | null>(null);
 
   const startAudioAnalysis = useCallback(() => {
     const analyze = () => {
@@ -445,7 +451,32 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
     ]
   );
 
-  const connect = useCallback(async () => {
+  const flushPendingPrompt = useCallback(() => {
+    const prompt = pendingPromptRef.current?.trim();
+    if (!prompt) {
+      return;
+    }
+    pendingPromptRef.current = null;
+
+    addMessage({
+      id: `user-text-${Date.now()}`,
+      role: "user",
+      text: prompt,
+      status: "complete",
+      timestamp: Date.now(),
+    });
+
+    if (sendOnDataChannel(createUserTextItemEvent(prompt))) {
+      sendOnDataChannel(createResponseCreateEvent());
+    }
+  }, [addMessage, sendOnDataChannel]);
+
+  const connect = useCallback(async (options?: ConnectOptions) => {
+    const prompt = options?.prompt?.trim();
+    if (prompt) {
+      pendingPromptRef.current = prompt;
+    }
+
     if (isConnectingRef.current) {
       logVoiceEvent("connection already in progress, skipping");
       return;
@@ -551,7 +582,10 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
 
       dc.onopen = () => {
         logVoiceEvent("data channel open");
-        void injectConversationHistory();
+        void (async () => {
+          await injectConversationHistory();
+          flushPendingPrompt();
+        })();
       };
 
       dc.onmessage = (event) => {
@@ -645,6 +679,7 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
       }
       setState("error");
       isConnectingRef.current = false;
+      pendingPromptRef.current = null;
     }
   }, [
     startAudioAnalysis,
@@ -653,6 +688,7 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
     setSessionStartTime,
     handleRealtimeEvent,
     injectConversationHistory,
+    flushPendingPrompt,
   ]);
 
   const stopMicrophone = useCallback(() => {
@@ -670,6 +706,7 @@ export function useRealtimeVoice(): UseRealtimeVoiceReturn {
     reconnectAttemptsRef.current = maxReconnectAttempts + 1;
     pendingFunctionCallsRef.current = 0;
     awaitingFunctionResultsRef.current = false;
+    pendingPromptRef.current = null;
 
     if (
       dataChannelRef.current &&
